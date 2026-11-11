@@ -62,6 +62,20 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
     renderer.toneMappingExposure = 1.15;
     container.appendChild(renderer.domElement);
 
+    // WebGL Context Loss Recovery
+    const canvas = renderer.domElement;
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      console.warn('[Avatar3DStage] WebGL context lost. Attempting auto-recovery...');
+      cancelAnimationFrame(animationFrameId);
+    };
+    const handleContextRestored = () => {
+      console.log('[Avatar3DStage] WebGL context restored.');
+      animate();
+    };
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
+
     // 3. Studio Lighting Rig (Warm Key + Cool Rim/Fill)
     const keyLight = new THREE.DirectionalLight(0xfff1e0, 2.2);
     keyLight.position.set(1.5, 3.0, 2.0);
@@ -484,6 +498,8 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }

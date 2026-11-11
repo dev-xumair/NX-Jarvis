@@ -55,6 +55,7 @@ export const RealtimeDashboard: React.FC = () => {
   const [inputVal, setInputVal] = useState('');
   const [viewMode, setViewMode] = useState<'VOICE_HERO' | 'CHAT_SPLIT'>('VOICE_HERO');
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{ action: string; target: string } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,6 +66,17 @@ export const RealtimeDashboard: React.FC = () => {
     if (e) e.preventDefault();
     if (!inputVal.trim()) return;
     const text = inputVal.trim();
+
+    // Check for high risk keywords requiring confirmation
+    const lower = text.toLowerCase();
+    if (
+      (lower.includes('format') || lower.includes('wipe') || lower.includes('delete all') || lower.includes('bulk delete')) &&
+      !lower.includes('confirm')
+    ) {
+      setPendingConfirmation({ action: text, target: 'Removable Storage / Bulk Files' });
+      return;
+    }
+
     setInputVal('');
     sendCommand(text);
   };
@@ -176,6 +188,52 @@ export const RealtimeDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* High-Risk Action Confirmation Modal */}
+      {pendingConfirmation && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div
+            className="w-full max-w-md p-6 rounded-2xl border space-y-4"
+            style={{ backgroundColor: 'var(--bg-surface)', borderColor: '#ef4444' }}
+          >
+            <div className="flex items-center gap-3 text-rose-400">
+              <ShieldCheck className="w-6 h-6 text-rose-500" />
+              <h3 className="font-bold text-sm tracking-tight text-white">
+                High-Risk Destructive Action Confirmation
+              </h3>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed font-sans">
+              Aap ne ek sensitive ya potentially destructive operation request kiya hai:
+            </p>
+            <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 font-mono text-xs text-amber-300">
+              &ldquo;{pendingConfirmation.action}&rdquo;
+            </div>
+            <p className="text-[11px] text-slate-400 font-sans">
+              C: Windows OS drive permanent safe hai, lekin external USB/data partition par ye action irreversible ho sakta hai. Kya aap is action ko proceed karna chahte hain?
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPendingConfirmation(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white border border-slate-700 bg-slate-800/60 cursor-pointer"
+              >
+                Cancel / Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = pendingConfirmation.action;
+                  setPendingConfirmation(null);
+                  sendCommand(`${action} [CONFIRMED_BY_USER]`);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 cursor-pointer shadow-lg shadow-rose-600/30"
+              >
+                Confirm & Proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. SUB-HEADER CONTROLS & MODE TOGGLE */}
       <div
