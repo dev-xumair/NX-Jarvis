@@ -53,6 +53,8 @@ function createMainWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
+      preload: path.join(__dirname, 'electron-preload.cjs'),
+      sandbox: true,
     },
   });
 
@@ -86,6 +88,8 @@ function createCompanionOverlayWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
+      preload: path.join(__dirname, 'electron-preload.cjs'),
+      sandbox: true,
     },
   });
 
@@ -124,6 +128,65 @@ function createCompanionOverlayWindow() {
     }
     if (companionWindow && !companionWindow.isDestroyed()) {
       companionWindow.webContents.send('character-event', payload);
+    }
+  });
+
+  // Active Window Tracking Poller for Real Windows Application Attachment
+  // Uses a persistent child process rather than spawning powershell every 500ms
+  let attachedTargetPattern = null;
+  let trackerProcess = null;
+  let isTracking = false;
+
+  ipcMain.on('companion-attach-window', (event, targetPattern) => {
+    attachedTargetPattern = targetPattern || 'chrome';
+    if (!isTracking && process.platform === 'win32') {
+      isTracking = true;
+      try {
+        const psLoopScript = `
+          Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }' -Name Win32 -Namespace Win32;
+          while ($true) {
+            $h = [Win32.Win32]::GetForegroundWindow();
+            $r = New-Object Win32.Win32+RECT;
+            [Win32.Win32]::GetWindowRect($h, [ref]$r);
+            Write-Output ($r.Left.ToString() + ',' + $r.Top.ToString() + ',' + ($r.Right-$r.Left).ToString() + ',' + ($r.Bottom-$r.Top).ToString());
+            Start-Sleep -Milliseconds 600;
+          }
+        `;
+        trackerProcess = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', psLoopScript], {
+          shell: false,
+          windowsHide: true,
+        });
+
+        trackerProcess.stdout.on('data', (data) => {
+          if (!companionWindow || companionWindow.isDestroyed() || !isTracking) return;
+          const lines = data.toString().trim().split('\n');
+          const lastLine = lines[lines.length - 1];
+          const parts = lastLine.trim().split(',');
+          if (parts.length === 4) {
+            const [wx, wy, ww, wh] = parts.map(Number);
+            if (ww > 200 && wh > 150) {
+              const targetX = Math.round(wx + ww - 320);
+              const targetY = Math.max(10, Math.round(wy - 40));
+              companionWindow.setPosition(targetX, targetY);
+            }
+          }
+        });
+
+        trackerProcess.on('exit', () => {
+          isTracking = false;
+        });
+      } catch (err) {
+        console.warn('[NX AI Window Tracker] Error starting tracker process:', err);
+      }
+    }
+  });
+
+  ipcMain.on('companion-detach-window', () => {
+    attachedTargetPattern = null;
+    isTracking = false;
+    if (trackerProcess) {
+      trackerProcess.kill();
+      trackerProcess = null;
     }
   });
 }

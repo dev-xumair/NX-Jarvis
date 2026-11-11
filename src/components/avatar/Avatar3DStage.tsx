@@ -127,6 +127,19 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
     scene.add(characterGroup);
 
     // Canonical Pakistani Female Identity Materials (Locked to reference_canonical.png)
+    // Texture loader to bind canonical reference identity features onto character meshes
+    const textureLoader = new THREE.TextureLoader();
+    const canonicalTexture = textureLoader.load(
+      '/assets/character/reference_canonical.png',
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+      },
+      undefined,
+      () => {
+        // Fallback gracefully to procedural material if texture is unavailable
+      }
+    );
+
     const skinMaterial = new THREE.MeshStandardMaterial({
       color: 0xfce1cc, // Warm natural South Asian complexion
       roughness: 0.58,

@@ -85,6 +85,9 @@ export const DesktopCompanion: React.FC = () => {
   const isSitting = companion.posture === 'sitting' || companion.animationState === 'SITTING';
   const isAttached = companion.visualMode === 'APPLICATION_ATTACHED' || companion.attachedWindow !== null;
 
+  // Check if we are running in dedicated transparent overlay mode
+  const isOverlayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('overlay') === 'true';
+
   const containerWidth = isSmall ? 'w-56' : isLarge ? 'w-88' : 'w-72';
 
   if (isHidden) {
@@ -103,12 +106,14 @@ export const DesktopCompanion: React.FC = () => {
   return (
     <div
       className={`fixed z-50 select-none transition-transform duration-200 ${
-        companion.isFloating ? '' : 'bottom-6 right-6'
+        isOverlayMode ? 'inset-0 flex items-center justify-center p-2' : companion.isFloating ? '' : 'bottom-6 right-6'
       }`}
-      style={companion.isFloating ? { left: `${position.x}px`, top: `${position.y}px` } : {}}
+      style={!isOverlayMode && companion.isFloating ? { left: `${position.x}px`, top: `${position.y}px` } : {}}
     >
       <div
         className={`relative flex flex-col items-center transition-all ${
+          isOverlayMode ? 'w-full h-full justify-center' : ''
+        } ${
           isSideDocked ? 'translate-x-14 opacity-90 hover:translate-x-0 hover:opacity-100' : ''
         } ${containerWidth}`}
       >
@@ -218,9 +223,18 @@ export const DesktopCompanion: React.FC = () => {
                       command: 'restore',
                     } as any);
                   } else {
-                    controlCompanion({
-                      command: 'attach_browser',
-                    } as any);
+                    // Use characterSeatManager to query Chrome profile and compute attachment anchor
+                    const chromeProfile = characterSeatManager.findMatchingProfile('chrome.exe', 'Google Chrome');
+                    if (chromeProfile) {
+                      controlCompanion({
+                        command: 'attach_browser',
+                        characterPose: chromeProfile.preferredPose,
+                      } as any);
+                    } else {
+                      controlCompanion({
+                        command: 'attach_browser',
+                      } as any);
+                    }
                   }
                 }}
                 className={`p-1 rounded transition-colors cursor-pointer ${
@@ -296,17 +310,23 @@ export const DesktopCompanion: React.FC = () => {
 
           {/* Transparent Living 3D WebGL Anime Avatar Stage */}
           <div
-            className={`relative rounded-3xl overflow-hidden border transition-all duration-300 w-full shadow-2xl flex items-center justify-center`}
+            className={`relative rounded-3xl overflow-hidden transition-all duration-300 w-full flex items-center justify-center ${
+              isOverlayMode ? 'bg-transparent border-0 shadow-none' : 'border shadow-2xl'
+            }`}
             style={{
-              backgroundColor: 'rgba(10, 15, 24, 0.4)', // Translucent glass backdrop
-              borderColor: isListening
+              backgroundColor: isOverlayMode ? 'transparent' : 'rgba(10, 15, 24, 0.4)',
+              borderColor: isOverlayMode
+                ? 'transparent'
+                : isListening
                 ? '#10b981'
                 : isSpeaking
                 ? '#38bdf8'
                 : agentState === 'THINKING'
                 ? '#f59e0b'
                 : 'rgba(56, 189, 248, 0.25)',
-              boxShadow: isListening
+              boxShadow: isOverlayMode
+                ? 'none'
+                : isListening
                 ? '0 0 35px rgba(16, 185, 129, 0.35)'
                 : isSpeaking
                 ? '0 0 35px rgba(56, 189, 248, 0.35)'

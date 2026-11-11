@@ -1,0 +1,21 @@
+{
+  "isFloating": true,
+  "dockPosition": "dock_bottom_right",
+  "scale": "medium",
+  "mood": "friendly",
+  "characterPose": "full",
+  "visualMode": "DESKTOP_COMPANION_TRANSPARENT",
+  "posture": "standing",
+  "animationState": "IDLE",
+  "expression": "FRIENDLY",
+  "currentThought": "Desktop companion active on screen.",
+  "lastSpokenPhrase": "Main tayyar hoon. Aap koi bhi task de sakte hain.",
+  "assistantName": "Saba (NX AI)",
+  "attachedWindow": null,
+  "attachedAnchor": "top-right",
+  "clickThrough": false,
+  "coordinates": {
+    "x": 1280,
+    "y": 720
+  }
+}
