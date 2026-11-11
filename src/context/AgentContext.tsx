@@ -420,7 +420,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [bargeInInterrupt, interactionMode, speakNatural, fetchTelemetry]
   );
 
-  // Web Speech Recognition with live interim streaming & real-time mic volume sensing
+  // Web Speech Recognition with live interim streaming, real-time mic volume sensing & speaker suppression
   const startVoiceListening = useCallback(() => {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -430,6 +430,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
+    // Echo prevention: cancel assistant TTS speech when opening mic to avoid self-triggering
     bargeInInterrupt();
     setLiveTranscript('');
     playChime('wake');
