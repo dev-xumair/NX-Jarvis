@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
-  "private": true,
-  "version": "0.0.0",
+  "name": "nx-ai",
+  "version": "3.0.0",
+  "description": "NX AI — Autonomous Windows Agent and Desktop Companion by Dev_X_NX",
+  "author": "Dev_X_NX",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
