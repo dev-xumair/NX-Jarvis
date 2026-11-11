@@ -101,9 +101,30 @@ export function computeSha256(filePath: string): string {
   return crypto.createHash('sha256').update(fileBuffer).digest('hex');
 }
 
+export function validatePartialFile(partialPath: string, expectedPrefixBytes?: Buffer): boolean {
+  if (!fs.existsSync(partialPath)) return false;
+  const stat = fs.statSync(partialPath);
+  if (stat.size <= 0) return false;
+
+  // Validate existing partial bytes if expected prefix is provided
+  if (expectedPrefixBytes && expectedPrefixBytes.length > 0) {
+    const checkLength = Math.min(stat.size, expectedPrefixBytes.length);
+    const fd = fs.openSync(partialPath, 'r');
+    const readBuf = Buffer.alloc(checkLength);
+    fs.readSync(fd, readBuf, 0, checkLength, 0);
+    fs.closeSync(fd);
+
+    if (!readBuf.equals(expectedPrefixBytes.subarray(0, checkLength))) {
+      return false; // Corrupted partial
+    }
+  }
+  return true;
+}
+
 export function atomicTransactionalCopy(
   sourceFile: string,
-  destFolder: string
+  destFolder: string,
+  resumeIfPartial: boolean = true
 ): FileCopyResult {
   if (!fs.existsSync(destFolder)) {
     fs.mkdirSync(destFolder, { recursive: true });
@@ -119,6 +140,17 @@ export function atomicTransactionalCopy(
     buffer = fs.readFileSync(sourceFile);
   } else {
     buffer = Buffer.from(`NX_AI_PAYLOAD_${Date.now()}_${filename}`);
+  }
+
+  // Check if a partial file already exists
+  if (fs.existsSync(partialFile)) {
+    const isValid = validatePartialFile(partialFile, buffer);
+    if (!isValid) {
+      // Partial is corrupted or belongs to a different source - discard it safely
+      try {
+        fs.unlinkSync(partialFile);
+      } catch {}
+    }
   }
 
   // 1. Write to .partial staging
