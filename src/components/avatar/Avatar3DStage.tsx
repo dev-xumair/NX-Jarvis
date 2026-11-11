@@ -5,34 +5,66 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { AgentState, AvatarExpression } from '../../types/agent';
+import {
+  AgentState,
+  AvatarExpression,
+  CharacterAnimationState,
+  CharacterPosture,
+  CharacterGesture,
+} from '../../types/agent';
 
 interface Avatar3DStageProps {
   mode: 'dashboard' | 'companion';
   agentState: AgentState;
+  animationState?: CharacterAnimationState;
+  posture?: CharacterPosture;
+  gesture?: CharacterGesture;
   expression?: AvatarExpression;
   isSpeaking: boolean;
   micVolume: number; // 0 to 1
   spokenText?: string;
   assistantName?: string;
   onMicToggle?: () => void;
+  onClickThroughToggle?: () => void;
   className?: string;
 }
 
 export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
   mode,
   agentState,
+  animationState = 'IDLE',
+  posture = 'standing',
+  gesture,
   expression = 'FRIENDLY',
   isSpeaking,
   micVolume,
   spokenText,
   assistantName = 'Saba (NX AI)',
   onMicToggle,
+  onClickThroughToggle,
   className = '',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef({ agentState, expression, isSpeaking, micVolume, mode });
-  stateRef.current = { agentState, expression, isSpeaking, micVolume, mode };
+  const stateRef = useRef({
+    agentState,
+    animationState,
+    posture,
+    gesture,
+    expression,
+    isSpeaking,
+    micVolume,
+    mode,
+  });
+  stateRef.current = {
+    agentState,
+    animationState,
+    posture,
+    gesture,
+    expression,
+    isSpeaking,
+    micVolume,
+    mode,
+  };
 
   useEffect(() => {
     const container = mountRef.current;
@@ -94,53 +126,91 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
     const characterGroup = new THREE.Group();
     scene.add(characterGroup);
 
-    // Materials
+    // Canonical Pakistani Female Identity Materials (Locked to reference_canonical.png)
     const skinMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfde3cf, // Warm natural South Asian skin tone
-      roughness: 0.65,
-      metalness: 0.05,
+      color: 0xfce1cc, // Warm natural South Asian complexion
+      roughness: 0.58,
+      metalness: 0.04,
     });
 
     const blushMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff8a80,
+      color: 0xf87171,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.38,
     });
 
     const hairMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1b1420, // Dark rich glossy hair
-      roughness: 0.35,
-      metalness: 0.15,
+      color: 0x17121b, // Rich glossy natural dark brown/black hair
+      roughness: 0.32,
+      metalness: 0.12,
     });
 
     const eyeWhiteMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const irisMaterial = new THREE.MeshStandardMaterial({
-      color: 0x2e1f47, // Deep expressive anime iris with violet undertone
-      roughness: 0.2,
-      metalness: 0.1,
+      color: 0x3d271d, // Deep almond brown iris matching reference
+      roughness: 0.18,
+      metalness: 0.08,
     });
-    const pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x050508 });
+    const pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x070608 });
     const eyeHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-    const dressMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0284c7, // Vibrant elegant teal kurti
-      roughness: 0.7,
-      metalness: 0.1,
+    const kurtiMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0284c7, // Vibrant teal modest Pakistani kurti
+      roughness: 0.68,
+      metalness: 0.08,
     });
 
-    const collarAccentMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b, // Gold embroidery trim
-      roughness: 0.3,
-      metalness: 0.7,
+    const goldTrimMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd97706, // Gold embroidery border trim
+      roughness: 0.28,
+      metalness: 0.75,
     });
 
     const dupattaMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe11d48, // Rich crimson draped shawl/dupatta
-      roughness: 0.8,
-      metalness: 0.05,
+      color: 0xe11d48, // Traditional crimson draped dupatta / shawl
+      roughness: 0.82,
+      metalness: 0.04,
     });
 
     const mouthMaterial = new THREE.MeshBasicMaterial({ color: 0xb91c1c });
+    const armMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfce1cc,
+      roughness: 0.6,
+      metalness: 0.04,
+    });
+
+    // Lower Body / Legs Rig (For Standing vs Sitting / Perched Poses)
+    const lowerBodyGroup = new THREE.Group();
+    lowerBodyGroup.position.set(0, 0.35, 0);
+    characterGroup.add(lowerBodyGroup);
+
+    // Salwar / Pants / Skirt Base
+    const legLeft = new THREE.Group();
+    legLeft.position.set(-0.1, 0, 0);
+    const legRight = new THREE.Group();
+    legRight.position.set(0.1, 0, 0);
+
+    const legGeo = new THREE.CylinderGeometry(0.08, 0.065, 0.45, 16);
+    const legMeshL = new THREE.Mesh(legGeo, kurtiMaterial);
+    legMeshL.position.y = -0.22;
+    legLeft.add(legMeshL);
+
+    const legMeshR = new THREE.Mesh(legGeo, kurtiMaterial);
+    legMeshR.position.y = -0.22;
+    legRight.add(legMeshR);
+
+    // Delicate shoes/khussa
+    const shoeGeo = new THREE.BoxGeometry(0.075, 0.04, 0.14);
+    const shoeMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4, metalness: 0.6 });
+    const shoeL = new THREE.Mesh(shoeGeo, shoeMat);
+    shoeL.position.set(0, -0.44, 0.02);
+    legLeft.add(shoeL);
+    const shoeR = new THREE.Mesh(shoeGeo, shoeMat);
+    shoeR.position.set(0, -0.44, 0.02);
+    legRight.add(shoeR);
+
+    lowerBodyGroup.add(legLeft);
+    lowerBodyGroup.add(legRight);
 
     // Torso / Shoulders
     const torsoGroup = new THREE.Group();
@@ -148,16 +218,44 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
     characterGroup.add(torsoGroup);
 
     const torsoGeo = new THREE.CylinderGeometry(0.24, 0.28, 0.65, 24);
-    const torsoMesh = new THREE.Mesh(torsoGeo, dressMaterial);
+    const torsoMesh = new THREE.Mesh(torsoGeo, kurtiMaterial);
     torsoMesh.position.y = 0.1;
     torsoGroup.add(torsoMesh);
 
     // Gold Collar trim
     const collarGeo = new THREE.TorusGeometry(0.18, 0.025, 12, 32);
-    const collarMesh = new THREE.Mesh(collarGeo, collarAccentMaterial);
+    const collarMesh = new THREE.Mesh(collarGeo, goldTrimMaterial);
     collarMesh.rotation.x = Math.PI / 2;
     collarMesh.position.set(0, 0.4, 0.02);
     torsoGroup.add(collarMesh);
+
+    // Arms and Hands Rig (For gestures: waving, pointing, thinking pose)
+    const leftArmGroup = new THREE.Group();
+    leftArmGroup.position.set(-0.28, 0.32, 0);
+    torsoGroup.add(leftArmGroup);
+
+    const armGeo = new THREE.CylinderGeometry(0.045, 0.038, 0.38, 12);
+    const leftArmMesh = new THREE.Mesh(armGeo, kurtiMaterial);
+    leftArmMesh.position.y = -0.16;
+    leftArmGroup.add(leftArmMesh);
+
+    const leftHandGeo = new THREE.SphereGeometry(0.04, 12, 12);
+    const leftHandMesh = new THREE.Mesh(leftHandGeo, armMaterial);
+    leftHandMesh.position.y = -0.36;
+    leftArmGroup.add(leftHandMesh);
+
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(0.28, 0.32, 0);
+    torsoGroup.add(rightArmGroup);
+
+    const rightArmMesh = new THREE.Mesh(armGeo, kurtiMaterial);
+    rightArmMesh.position.y = -0.16;
+    rightArmGroup.add(rightArmMesh);
+
+    const rightHandGeo = new THREE.SphereGeometry(0.04, 12, 12);
+    const rightHandMesh = new THREE.Mesh(rightHandGeo, armMaterial);
+    rightHandMesh.position.y = -0.36;
+    rightArmGroup.add(rightHandMesh);
 
     // Draped Dupatta / Shawl accent
     const dupattaCurve = new THREE.CatmullRomCurve3([
@@ -312,7 +410,15 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
     rightLock.rotation.z = -0.15;
     hairGroup.add(rightLock);
 
-    // Back Braided Hair / Flow
+    // Back Layered Hair with Dynamic Physics Simulation
+    const hairPhysicsBone1 = new THREE.Group();
+    hairPhysicsBone1.position.set(0, 0.05, -0.26);
+    hairGroup.add(hairPhysicsBone1);
+
+    const hairPhysicsBone2 = new THREE.Group();
+    hairPhysicsBone2.position.set(0, -0.25, 0);
+    hairPhysicsBone1.add(hairPhysicsBone2);
+
     const braidCurve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 0.05, -0.28),
       new THREE.Vector3(0.04, -0.2, -0.32),
@@ -322,6 +428,18 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
     const braidGeo = new THREE.TubeGeometry(braidCurve, 24, 0.07, 12, false);
     const braidMesh = new THREE.Mesh(braidGeo, hairMaterial);
     hairGroup.add(braidMesh);
+
+    // Extra secondary flowing strands for realism
+    const strandGeo = new THREE.CylinderGeometry(0.015, 0.005, 0.5, 8);
+    const leftStrand = new THREE.Mesh(strandGeo, hairMaterial);
+    leftStrand.position.set(-0.16, -0.22, 0.12);
+    leftStrand.rotation.z = 0.12;
+    headGroup.add(leftStrand);
+
+    const rightStrand = new THREE.Mesh(strandGeo, hairMaterial);
+    rightStrand.position.set(0.16, -0.22, 0.12);
+    rightStrand.rotation.z = -0.12;
+    headGroup.add(rightStrand);
 
     // Hair Pin / Accessory (Emerald / Pearl Clip)
     const pinGeo = new THREE.TorusGeometry(0.03, 0.01, 8, 16);
@@ -368,14 +486,47 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
       animationFrameId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
-      const { agentState: st, expression: expr, isSpeaking: spk, micVolume: vol } = stateRef.current;
+      const {
+        agentState: st,
+        animationState: animSt,
+        posture: post,
+        gesture: gst,
+        expression: expr,
+        isSpeaking: spk,
+        micVolume: vol,
+      } = stateRef.current;
 
-      // Kinematics 1: Breathing sine wave on chest/torso
-      const breath = Math.sin(elapsed * 2.2) * 0.018;
+      // Kinematics 1: Breathing sine wave on chest/torso (low CPU idle)
+      const breath = Math.sin(elapsed * 2.1) * 0.018;
       torsoGroup.position.y = 0.65 + breath;
-      torsoGroup.scale.set(1 + breath * 0.5, 1 + breath, 1 + breath * 0.5);
+      torsoGroup.scale.set(1 + breath * 0.4, 1 + breath, 1 + breath * 0.4);
 
-      // Kinematics 2: Idle subtle head sway & mouse tracking
+      // Posture Handling: Standing vs Sitting / Perched
+      if (post === 'sitting' || post === 'perched' || animSt === 'SITTING') {
+        characterGroup.position.y = -0.25;
+        legLeft.rotation.x = -Math.PI / 2.3;
+        legRight.rotation.x = -Math.PI / 2.3;
+        legLeft.position.z = 0.15;
+        legRight.position.z = 0.15;
+        contactShadow.position.y = 0.1;
+      } else {
+        characterGroup.position.y = 0;
+        legLeft.rotation.x = Math.sin(elapsed * 1.5) * 0.03;
+        legRight.rotation.x = -Math.sin(elapsed * 1.5) * 0.03;
+        legLeft.position.z = 0;
+        legRight.position.z = 0;
+        contactShadow.position.y = 0.05;
+      }
+
+      // Secondary Hair Physics Simulation with Damped Inertia & Settling
+      const headSway = headGroup.rotation.y;
+      const hairSway = Math.sin(elapsed * 2.8) * 0.06 - headSway * 0.25;
+      hairGroup.rotation.z = hairSway * 0.3;
+      hairGroup.rotation.y = -headSway * 0.2;
+      leftStrand.rotation.z = 0.12 + Math.sin(elapsed * 2.5) * 0.05;
+      rightStrand.rotation.z = -0.12 - Math.sin(elapsed * 2.5) * 0.05;
+
+      // Kinematics 2: Idle subtle head sway & mouse tracking with smooth interpolation
       currentLookAt.lerp(targetLookAt, 0.05);
       headGroup.rotation.y = currentLookAt.x * 0.45 + Math.sin(elapsed * 1.2) * 0.04;
       headGroup.rotation.x = -currentLookAt.y * 0.35 + Math.cos(elapsed * 1.5) * 0.03;
@@ -422,28 +573,56 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
 
       mouthMesh.scale.set(mouthScaleX, mouthScaleY, 0.4);
 
-      // Kinematics 5: Eyebrow Expressions
-      if (expr === 'ATTENTIVE' || st === 'LISTENING') {
+      // Kinematics 5: Eyebrow Expressions & Face Identity Lock
+      if (expr === 'ATTENTIVE' || st === 'LISTENING' || animSt === 'LISTENING') {
         leftBrow.position.y = 0.33;
         rightBrow.position.y = 0.33;
         leftBrow.rotation.z = 0.08;
         rightBrow.rotation.z = -0.08;
-      } else if (expr === 'THINKING' || st === 'THINKING' || st === 'PLANNING') {
+      } else if (expr === 'THINKING' || st === 'THINKING' || st === 'PLANNING' || animSt === 'THINKING') {
         leftBrow.position.y = 0.34;
         rightBrow.position.y = 0.31;
         leftBrow.rotation.z = 0.14;
         rightBrow.rotation.z = 0.02;
-      } else if (expr === 'SUCCESS' || st === 'COMPLETED') {
+      } else if (expr === 'SUCCESS' || st === 'COMPLETED' || animSt === 'SUCCESS') {
         leftBrow.position.y = 0.335;
         rightBrow.position.y = 0.335;
         leftBrow.rotation.z = 0.03;
         rightBrow.rotation.z = -0.03;
+      } else if (expr === 'WARNING' || expr === 'CONCERNED' || animSt === 'WARNING' || animSt === 'ERROR') {
+        leftBrow.position.y = 0.315;
+        rightBrow.position.y = 0.315;
+        leftBrow.rotation.z = -0.08;
+        rightBrow.rotation.z = 0.08;
       } else {
         leftBrow.position.y = 0.32;
         rightBrow.position.y = 0.32;
         leftBrow.rotation.z = 0.05;
         rightBrow.rotation.z = -0.05;
       }
+
+      // Gesture Kinematics (Wave, Point, Think, Heart)
+      if (gst === 'wave') {
+        rightArmGroup.rotation.z = THREE.MathUtils.lerp(
+          rightArmGroup.rotation.z,
+          2.3 + Math.sin(elapsed * 10) * 0.35,
+          0.1
+        );
+        rightArmGroup.rotation.x = THREE.MathUtils.lerp(rightArmGroup.rotation.x, 0.4, 0.1);
+      } else if (gst === 'point') {
+        rightArmGroup.rotation.z = THREE.MathUtils.lerp(rightArmGroup.rotation.z, 1.4, 0.1);
+        rightArmGroup.rotation.x = THREE.MathUtils.lerp(rightArmGroup.rotation.x, -1.2, 0.1);
+      } else if (gst === 'thinking' || st === 'THINKING') {
+        rightArmGroup.rotation.z = THREE.MathUtils.lerp(rightArmGroup.rotation.z, 1.8, 0.08);
+        rightArmGroup.rotation.x = THREE.MathUtils.lerp(rightArmGroup.rotation.x, 0.6, 0.08);
+      } else {
+        // Natural resting arm swing
+        rightArmGroup.rotation.z = THREE.MathUtils.lerp(rightArmGroup.rotation.z, 0.1 + Math.sin(elapsed * 1.5) * 0.04, 0.08);
+        rightArmGroup.rotation.x = THREE.MathUtils.lerp(rightArmGroup.rotation.x, 0, 0.08);
+      }
+
+      leftArmGroup.rotation.z = THREE.MathUtils.lerp(leftArmGroup.rotation.z, -0.1 - Math.sin(elapsed * 1.5) * 0.04, 0.08);
+      leftArmGroup.rotation.x = THREE.MathUtils.lerp(leftArmGroup.rotation.x, 0, 0.08);
 
       // Kinematics 6: Active Aura Ring
       if (st === 'LISTENING') {
