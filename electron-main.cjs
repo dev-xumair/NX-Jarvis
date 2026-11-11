@@ -15,6 +15,7 @@ let mainWindow = null;
 let companionWindow = null;
 let tray = null;
 let serverProcess = null;
+let clickThroughEnabled = false;
 
 const PORT = process.env.PORT || 3000;
 const SERVER_URL = `http://localhost:${PORT}`;
@@ -62,8 +63,68 @@ function createMainWindow() {
     if (!app.isQuitting) {
       e.preventDefault();
       mainWindow.hide();
+      // Ensure companion window stays visible on desktop when main window is hidden
+      if (companionWindow && !companionWindow.isDestroyed()) {
+        companionWindow.show();
+      }
     }
     return false;
+  });
+}
+
+function createCompanionOverlayWindow() {
+  companionWindow = new BrowserWindow({
+    width: 340,
+    height: 480,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    resizable: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      enableRemoteModule: false,
+    },
+  });
+
+  companionWindow.loadURL(`${SERVER_URL}/?overlay=true`);
+
+  // IPC Event Forwarding & Sync between Windows
+  ipcMain.on('companion-clickthrough-toggle', (event, enable) => {
+    clickThroughEnabled = enable;
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.setIgnoreMouseEvents(clickThroughEnabled, { forward: true });
+    }
+  });
+
+  ipcMain.on('companion-move', (event, { x, y }) => {
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.setPosition(Math.round(x), Math.round(y));
+    }
+  });
+
+  ipcMain.on('companion-resize', (event, { width, height }) => {
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.setSize(Math.round(width), Math.round(height));
+    }
+  });
+
+  ipcMain.on('companion-visibility', (event, isVisible) => {
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      if (isVisible) companionWindow.show();
+      else companionWindow.hide();
+    }
+  });
+
+  ipcMain.on('character-event-broadcast', (event, payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('character-event', payload);
+    }
+    if (companionWindow && !companionWindow.isDestroyed()) {
+      companionWindow.webContents.send('character-event', payload);
+    }
   });
 }
 
@@ -123,6 +184,7 @@ app.whenReady().then(() => {
   startBackendServer();
   setTimeout(() => {
     createMainWindow();
+    createCompanionOverlayWindow();
     createTray();
 
     // Register Global Hotkey: Alt+Space to toggle NX AI
@@ -134,6 +196,17 @@ app.whenReady().then(() => {
           mainWindow.show();
           mainWindow.focus();
           mainWindow.webContents.send('nx-voice-wake');
+        }
+      }
+    });
+
+    // Register Alt+C to toggle Character companion
+    globalShortcut.register('Alt+C', () => {
+      if (companionWindow) {
+        if (companionWindow.isVisible()) {
+          companionWindow.hide();
+        } else {
+          companionWindow.show();
         }
       }
     });

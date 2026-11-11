@@ -17,7 +17,13 @@ import {
   Sparkles,
   Move,
   X,
+  Armchair,
+  UserCheck,
+  AppWindow,
+  MousePointer,
+  Home,
 } from 'lucide-react';
+import { characterSeatManager } from '../../services/characterSeatManager.ts';
 
 export const DesktopCompanion: React.FC = () => {
   const {
@@ -76,6 +82,8 @@ export const DesktopCompanion: React.FC = () => {
   const isSideDocked = companion.dockPosition === 'side_right' || companion.dockPosition === 'side_left';
   const isSmall = companion.scale === 'small';
   const isLarge = companion.scale === 'large';
+  const isSitting = companion.posture === 'sitting' || companion.animationState === 'SITTING';
+  const isAttached = companion.visualMode === 'APPLICATION_ATTACHED' || companion.attachedWindow !== null;
 
   const containerWidth = isSmall ? 'w-56' : isLarge ? 'w-88' : 'w-72';
 
@@ -185,8 +193,58 @@ export const DesktopCompanion: React.FC = () => {
               title="Drag to reposition on screen"
             >
               <Move className="w-3 h-3 text-sky-400" />
-              <span className="text-[11px] font-semibold">Saba</span>
+                <span className="text-[11px] font-semibold">{companion.assistantName || 'Saba'}</span>
             </div>
+
+              {/* Sit / Stand toggle */}
+              <button
+                onClick={() =>
+                  controlCompanion({
+                    characterPose: 'full',
+                    command: isSitting ? 'stand' : 'sit',
+                  } as any)
+                }
+                className="p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer text-slate-400 hover:text-sky-300"
+                title={isSitting ? 'Khari ho jao (Stand)' : 'Beth jao (Sit)'}
+              >
+                {isSitting ? <UserCheck className="w-3 h-3 text-emerald-400" /> : <Armchair className="w-3 h-3 text-sky-400" />}
+              </button>
+
+              {/* Browser / App Window Attachment Toggle */}
+              <button
+                onClick={() => {
+                  if (isAttached) {
+                    controlCompanion({
+                      command: 'restore',
+                    } as any);
+                  } else {
+                    controlCompanion({
+                      command: 'attach_browser',
+                    } as any);
+                  }
+                }}
+                className={`p-1 rounded transition-colors cursor-pointer ${
+                  isAttached ? 'text-amber-400 bg-amber-950/60' : 'hover:bg-slate-800 text-slate-400 hover:text-amber-300'
+                }`}
+                title={isAttached ? 'Detach from window' : 'Chrome / App Window par attach karein'}
+              >
+                <AppWindow className="w-3 h-3" />
+              </button>
+
+              {/* Return to Desktop Home Center */}
+              <button
+                onClick={() =>
+                  controlCompanion({
+                    dockPosition: 'center',
+                    isFloating: true,
+                    command: 'center',
+                  } as any)
+                }
+                className="p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer text-slate-400 hover:text-sky-300"
+                title="Beech mein jaake beth jaye (Center Home)"
+              >
+                <Home className="w-3 h-3" />
+              </button>
 
             {/* Scale toggle */}
             <button
@@ -259,6 +317,8 @@ export const DesktopCompanion: React.FC = () => {
             <Avatar3DStage
               mode="companion"
               agentState={agentState}
+              animationState={companion.animationState || (isSitting ? 'SITTING' : 'IDLE')}
+              posture={companion.posture || (isSitting ? 'sitting' : 'standing')}
               expression={companion.expression || 'FRIENDLY'}
               isSpeaking={isSpeaking}
               micVolume={micVolume / 100}

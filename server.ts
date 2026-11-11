@@ -26,7 +26,10 @@ import type {
   SkillManifest,
   MobileBridgeStatus,
   MemoryLayer,
+  CharacterEventPayload,
+  WindowSeatConfig,
 } from './src/types/agent.ts';
+import { defaultSeatingProfiles, characterSeatManager } from './src/services/characterSeatManager.ts';
 
 dotenv.config();
 
@@ -193,12 +196,17 @@ const db: DatabaseState = {
     dockPosition: 'dock_bottom_right',
     scale: 'medium',
     mood: 'friendly',
-    characterPose: 'bust',
+    characterPose: 'full',
     visualMode: 'DASHBOARD_HALF_BODY',
+    posture: 'standing',
+    animationState: 'IDLE',
     expression: 'FRIENDLY',
     currentThought: 'Monitoring system & ready for voice or chat commands.',
     lastSpokenPhrase: 'Main tayyar hoon. Aap koi bhi task de sakte hain.',
     assistantName: 'Saba (NX AI)',
+    attachedWindow: null,
+    attachedAnchor: undefined,
+    clickThrough: false,
   },
   taskQueue: [],
   historyTasks: [],
@@ -441,14 +449,68 @@ app.get('/api/companion/state', (req: Request, res: Response) => {
   res.json({ companion: db.companion });
 });
 
+// App-Specific Seating Profiles API
+app.get('/api/character/seat-config', (req: Request, res: Response) => {
+  res.json({ profiles: characterSeatManager.getProfiles() });
+});
+
+app.post('/api/character/seat-config', (req: Request, res: Response) => {
+  const config = req.body as WindowSeatConfig;
+  if (config && config.applicationId) {
+    characterSeatManager.registerProfile(config);
+    return res.json({ success: true, profile: config });
+  }
+  res.status(400).json({ error: 'Invalid seating config' });
+});
+
+// Character Event Bus Relay
+const characterEventsLog: CharacterEventPayload[] = [];
+
+app.get('/api/character/events', (req: Request, res: Response) => {
+  res.json({ events: characterEventsLog.slice(-50) });
+});
+
+app.post('/api/character/events', (req: Request, res: Response) => {
+  const event = req.body as CharacterEventPayload;
+  if (event && event.eventName) {
+    event.timestamp = event.timestamp || Date.now();
+    characterEventsLog.push(event);
+
+    // Synchronize event with companion db state
+    if (event.eventName === 'character.hide') {
+      db.companion.dockPosition = 'hidden';
+      db.companion.animationState = 'HIDDEN';
+    } else if (event.eventName === 'character.show' || event.eventName === 'character.return_home') {
+      db.companion.dockPosition = 'dock_bottom_right';
+      db.companion.animationState = 'IDLE';
+    } else if (event.eventName === 'character.attach' && event.data) {
+      db.companion.attachedWindow = event.data.targetWindow || 'Active Window';
+      db.companion.attachedAnchor = event.data.anchor || 'top-right';
+      db.companion.posture = event.data.posture || 'sitting';
+      db.companion.animationState = 'ATTACHED_TO_WINDOW';
+    } else if (event.eventName === 'character.detach') {
+      db.companion.attachedWindow = null;
+      db.companion.attachedAnchor = undefined;
+      db.companion.posture = 'standing';
+      db.companion.animationState = 'IDLE';
+    }
+
+    return res.json({ success: true, event });
+  }
+  res.status(400).json({ error: 'Invalid event payload' });
+});
+
 app.post('/api/companion/control', (req: Request, res: Response) => {
-  const { command, dockPosition, scale, isFloating, visualMode, expression } = req.body;
+  const { command, dockPosition, scale, isFloating, visualMode, posture, animationState, expression, clickThrough } = req.body;
 
   if (dockPosition) db.companion.dockPosition = dockPosition;
   if (scale) db.companion.scale = scale;
   if (typeof isFloating === 'boolean') db.companion.isFloating = isFloating;
   if (visualMode) db.companion.visualMode = visualMode;
+  if (posture) db.companion.posture = posture;
+  if (animationState) db.companion.animationState = animationState;
   if (expression) db.companion.expression = expression;
+  if (typeof clickThrough === 'boolean') db.companion.clickThrough = clickThrough;
 
   if (command === 'hide_side' || command === 'dock_side') {
     db.companion.dockPosition = 'side_right';
@@ -607,17 +669,21 @@ app.post('/api/agent/command', async (req: Request, res: Response) => {
     });
   }
 
-  // 2. Companion Voice Navigation Commands
-  if (lower.includes('side mein chup') || lower.includes('chup ja') || lower.includes('side ho ja')) {
-    db.companion.dockPosition = 'side_right';
-    db.companion.scale = 'small';
-    db.companion.visualMode = 'DESKTOP_COMPANION_TRANSPARENT';
-    db.companion.expression = 'ATTENTIVE';
+  // 2. Comprehensive Character Voice Navigation & State Control (Urdu / Roman Urdu / English)
+  // A. Hide / Disappear
+  if (
+    lower.includes('chup jao') ||
+    lower.includes('chup ja') ||
+    lower.includes('hide ho jao') ||
+    lower.includes('hide yourself') ||
+    lower.includes('disappear')
+  ) {
+    db.companion.dockPosition = 'hidden';
+    db.companion.animationState = 'HIDDEN';
+    db.companion.currentThought = 'Hidden from screen as requested.';
     db.agentState = 'COMPLETED';
-    db.companion.mood = 'friendly';
-    const spokenReply = 'Theek hai, main screen ki side par compact transparent mode mein hoon. Jab zaroorat ho awaaz de dein.';
+    const spokenReply = 'Ji, main screen se chup gayi hoon. Jab bulana ho "NX samne aao" kahein.';
     db.companion.lastSpokenPhrase = spokenReply;
-
     db.chatMessages.push({
       id: `msg-${Date.now()}-a`,
       sender: 'agent',
@@ -625,25 +691,35 @@ app.post('/api/agent/command', async (req: Request, res: Response) => {
       time: Date.now(),
       languageDetected: 'roman_urdu',
     });
-
     return res.json({
       responseUrdu: spokenReply,
-      responseEnglish: 'Docked to the screen side in compact transparent mode.',
+      responseEnglish: 'Character hidden from view.',
       companion: db.companion,
       agentState: 'IDLE',
     });
   }
 
-  if (lower.includes('wapas aa ja') || lower.includes('samne aao') || lower.includes('open ho ja')) {
+  // B. Show / Return / Samne aao / Wapas aao
+  if (
+    lower.includes('show ho jao') ||
+    lower.includes('samne aao') ||
+    lower.includes('samne aa jao') ||
+    lower.includes('wapas aa jao') ||
+    lower.includes('wapas aa ja') ||
+    lower.includes('come back') ||
+    lower.includes('mere saamne aa jao')
+  ) {
     db.companion.dockPosition = 'dock_bottom_right';
     db.companion.scale = 'medium';
     db.companion.visualMode = 'DASHBOARD_HALF_BODY';
     db.companion.expression = 'FRIENDLY';
+    db.companion.posture = 'standing';
+    db.companion.animationState = 'IDLE';
+    db.companion.attachedWindow = null;
     db.agentState = 'COMPLETED';
     db.companion.mood = 'friendly';
     const spokenReply = 'Main wapas aa gayi hoon. Batayein agla task kya hai?';
     db.companion.lastSpokenPhrase = spokenReply;
-
     db.chatMessages.push({
       id: `msg-${Date.now()}-a`,
       sender: 'agent',
@@ -651,16 +727,130 @@ app.post('/api/agent/command', async (req: Request, res: Response) => {
       time: Date.now(),
       languageDetected: 'roman_urdu',
     });
-
     return res.json({
       responseUrdu: spokenReply,
-      responseEnglish: 'Restored companion to main dashboard view.',
+      responseEnglish: 'Character returned to default workspace view.',
       companion: db.companion,
       agentState: 'IDLE',
     });
   }
 
-  if (lower.includes('chhoti ho ja') || lower.includes('chota ho ja')) {
+  // C. Desktop Center / Home Area ("beech mein jaake beth jaye" / "center")
+  if (
+    lower.includes('beech mein') ||
+    lower.includes('center') ||
+    lower.includes('beech main') ||
+    lower.includes('darmiyan')
+  ) {
+    db.companion.isFloating = true;
+    db.companion.dockPosition = 'center';
+    db.companion.posture = 'sitting';
+    db.companion.animationState = 'SITTING';
+    db.companion.expression = 'FRIENDLY';
+    db.companion.attachedWindow = null;
+    db.agentState = 'COMPLETED';
+    const spokenReply = 'Theek hai, main screen ke darmiyan baith gayi hoon.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    db.chatMessages.push({
+      id: `msg-${Date.now()}-a`,
+      sender: 'agent',
+      text: spokenReply,
+      time: Date.now(),
+      languageDetected: 'roman_urdu',
+    });
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Positioned at desktop center in sitting pose.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  // D. Window Attachment ("Chrome ke upar aa jao" / "browser ke upar baith jao" / "window ke side pe khari ho")
+  if (
+    lower.includes('chrome ke upar') ||
+    lower.includes('browser ke upar') ||
+    lower.includes('window ke upar') ||
+    lower.includes('top par baith') ||
+    lower.includes('window ke side') ||
+    lower.includes('attach to window')
+  ) {
+    const isSitting = lower.includes('baith') || lower.includes('beth');
+    const isSide = lower.includes('side');
+    db.companion.visualMode = 'APPLICATION_ATTACHED';
+    db.companion.attachedWindow = 'Google Chrome';
+    db.companion.attachedAnchor = isSide ? 'right-edge' : 'top-right';
+    db.companion.posture = isSitting ? 'sitting' : 'perched';
+    db.companion.animationState = 'ATTACHED_TO_WINDOW';
+    db.companion.expression = 'ATTENTIVE';
+    db.agentState = 'COMPLETED';
+    const spokenReply = isSitting
+      ? 'Main Chrome browser ke top bar par baith gayi hoon aur aapke web session ko monitor kar rahi hoon.'
+      : 'Main browser window ke side par attach ho gayi hoon.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    db.chatMessages.push({
+      id: `msg-${Date.now()}-a`,
+      sender: 'agent',
+      text: spokenReply,
+      time: Date.now(),
+      languageDetected: 'roman_urdu',
+    });
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Attached companion to active browser window overlay.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  // E. Right / Left / Corner Positioning
+  if (lower.includes('right side') || lower.includes('right side par')) {
+    db.companion.dockPosition = 'side_right';
+    db.companion.posture = 'standing';
+    db.companion.animationState = 'IDLE';
+    db.agentState = 'COMPLETED';
+    const spokenReply = 'Main right side par move ho gayi hoon.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Moved to right side.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  if (lower.includes('left side') || lower.includes('left side par')) {
+    db.companion.dockPosition = 'side_left';
+    db.companion.posture = 'standing';
+    db.companion.animationState = 'IDLE';
+    db.agentState = 'COMPLETED';
+    const spokenReply = 'Main left side par move ho gayi hoon.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Moved to left side.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  if (lower.includes('corner mein') || lower.includes('corner me')) {
+    db.companion.dockPosition = 'dock_bottom_right';
+    db.companion.posture = 'standing';
+    db.companion.animationState = 'IDLE';
+    db.agentState = 'COMPLETED';
+    const spokenReply = 'Main screen ke corner mein set ho gayi hoon.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Moved to bottom corner.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  // F. Sizing Commands
+  if (lower.includes('chhoti ho jao') || lower.includes('chota ho ja') || lower.includes('choti ho')) {
     db.companion.scale = 'small';
     db.agentState = 'COMPLETED';
     const spokenReply = 'Companion size compact kar diya hai.';
@@ -673,7 +863,20 @@ app.post('/api/agent/command', async (req: Request, res: Response) => {
     });
   }
 
-  if (lower.includes('badi ho ja') || lower.includes('normal size')) {
+  if (lower.includes('badi ho ja') || lower.includes('thori bari ho') || lower.includes('large size')) {
+    db.companion.scale = 'large';
+    db.agentState = 'COMPLETED';
+    const spokenReply = 'Companion size bara kar diya hai.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Companion scale expanded to large.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  if (lower.includes('normal size') || lower.includes('normal karo')) {
     db.companion.scale = 'medium';
     db.agentState = 'COMPLETED';
     const spokenReply = 'Companion size standard kar diya hai.';
@@ -681,6 +884,35 @@ app.post('/api/agent/command', async (req: Request, res: Response) => {
     return res.json({
       responseUrdu: spokenReply,
       responseEnglish: 'Companion scale normalized.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  // G. Sit / Stand Posture Commands ("beth jao", "khari ho jao")
+  if (lower.includes('beth jao') || lower.includes('baith jao') || lower.includes('sit down')) {
+    db.companion.posture = 'sitting';
+    db.companion.animationState = 'SITTING';
+    db.agentState = 'COMPLETED';
+    const spokenReply = 'Ji, main baith gayi hoon.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Adopted sitting posture.',
+      companion: db.companion,
+      agentState: 'IDLE',
+    });
+  }
+
+  if (lower.includes('khari ho jao') || lower.includes('stand up')) {
+    db.companion.posture = 'standing';
+    db.companion.animationState = 'STANDING';
+    db.agentState = 'COMPLETED';
+    const spokenReply = 'Ji, main khari ho gayi hoon.';
+    db.companion.lastSpokenPhrase = spokenReply;
+    return res.json({
+      responseUrdu: spokenReply,
+      responseEnglish: 'Adopted standing posture.',
       companion: db.companion,
       agentState: 'IDLE',
     });

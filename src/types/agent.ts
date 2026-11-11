@@ -25,7 +25,32 @@ export type AvatarPoseMode =
   | 'DASHBOARD_HALF_BODY'
   | 'DESKTOP_COMPANION_TRANSPARENT'
   | 'MINIMIZE_TRANSITION'
-  | 'RESTORE_TRANSITION';
+  | 'RESTORE_TRANSITION'
+  | 'APPLICATION_ATTACHED';
+
+export type CharacterAnimationState =
+  | 'HIDDEN'
+  | 'SHOWING'
+  | 'IDLE'
+  | 'LISTENING'
+  | 'THINKING'
+  | 'PLANNING'
+  | 'WORKING'
+  | 'SPEAKING'
+  | 'WAITING'
+  | 'SUCCESS'
+  | 'WARNING'
+  | 'ERROR'
+  | 'MOVING'
+  | 'WALKING'
+  | 'JUMPING'
+  | 'SITTING'
+  | 'STANDING'
+  | 'ATTACHED_TO_WINDOW'
+  | 'DETACHING'
+  | 'MINIMIZED'
+  | 'DRAGGING'
+  | 'RESIZING';
 
 export type AvatarExpression =
   | 'NEUTRAL'
@@ -37,19 +62,114 @@ export type AvatarExpression =
   | 'VERIFYING'
   | 'SPEAKING'
   | 'SUCCESS'
-  | 'CONCERNED';
+  | 'CONCERNED'
+  | 'WARNING'
+  | 'APOLOGY'
+  | 'PLAYFUL';
+
+export type AttachmentAnchor =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'left-edge'
+  | 'right-edge'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'custom';
+
+export type CharacterPosture = 'standing' | 'sitting' | 'perched' | 'leaning';
+
+export type CharacterGesture =
+  | 'wave'
+  | 'nod'
+  | 'shake_head'
+  | 'point'
+  | 'look'
+  | 'sit'
+  | 'stand'
+  | 'lean'
+  | 'stretch'
+  | 'yawn'
+  | 'idle_look_around'
+  | 'greeting'
+  | 'acknowledgement'
+  | 'thinking'
+  | 'working'
+  | 'celebration'
+  | 'apology'
+  | 'goodbye'
+  | 'hand_kiss'
+  | 'heart';
+
+export interface WindowSeatConfig {
+  applicationId: string;
+  processPattern: string; // e.g., 'chrome.exe', 'explorer.exe'
+  anchor: AttachmentAnchor;
+  offsetX: number;
+  offsetY: number;
+  scale: 'small' | 'medium' | 'large';
+  preferredPose: CharacterPosture;
+  preferredAnimation?: CharacterAnimationState;
+  zOrder: number;
+  enabled: boolean;
+}
+
+export type CharacterEventName =
+  | 'character.show'
+  | 'character.hide'
+  | 'character.move'
+  | 'character.resize'
+  | 'character.attach'
+  | 'character.detach'
+  | 'character.pose'
+  | 'character.expression'
+  | 'character.gesture'
+  | 'character.speak_start'
+  | 'character.speak_audio'
+  | 'character.speak_end'
+  | 'character.listen_start'
+  | 'character.listen_end'
+  | 'character.task_start'
+  | 'character.task_progress'
+  | 'character.task_success'
+  | 'character.task_warning'
+  | 'character.task_error'
+  | 'character.return_home';
+
+export interface CharacterEventPayload {
+  eventName: CharacterEventName;
+  timestamp: number;
+  data?: {
+    position?: { x: number; y: number };
+    anchor?: AttachmentAnchor;
+    targetWindow?: string;
+    scale?: 'small' | 'medium' | 'large';
+    posture?: CharacterPosture;
+    animationState?: CharacterAnimationState;
+    expression?: AvatarExpression;
+    gesture?: CharacterGesture;
+    spokenText?: string;
+    audioVolume?: number;
+    taskId?: string;
+  };
+}
 
 export interface CompanionState {
   isFloating: boolean;
-  dockPosition: 'side_left' | 'side_right' | 'dock_bottom_right' | 'center' | 'hidden';
+  dockPosition: 'side_left' | 'side_right' | 'dock_bottom_right' | 'center' | 'top_right' | 'top_left' | 'hidden';
   scale: 'small' | 'medium' | 'large';
-  mood: 'friendly' | 'listening' | 'thinking' | 'speaking' | 'executing' | 'focused';
+  mood: 'friendly' | 'listening' | 'thinking' | 'speaking' | 'executing' | 'focused' | 'waiting';
   characterPose?: 'full' | 'bust';
   visualMode?: AvatarPoseMode;
+  posture?: CharacterPosture;
+  animationState?: CharacterAnimationState;
   expression?: AvatarExpression;
   currentThought: string;
   lastSpokenPhrase: string;
   assistantName?: string; // Configurable name (e.g., Saba, Khanum, Cutie, NX)
+  attachedWindow?: string | null;
+  attachedAnchor?: AttachmentAnchor;
+  clickThrough?: boolean;
 }
 
 export type AutomationHierarchyLevel =
