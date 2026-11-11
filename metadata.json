@@ -1,0 +1,6 @@
+{
+  "name": "NX AI — Autonomous Windows Agent",
+  "description": "Professional local-first, voice-first autonomous Windows agent for shop operations, USB media packaging, verification, safe system controls, multi-Gemini quota routing, and 7-layer memory.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
