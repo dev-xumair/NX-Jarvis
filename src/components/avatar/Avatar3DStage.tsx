@@ -130,13 +130,13 @@ export const Avatar3DStage: React.FC<Avatar3DStageProps> = ({
     // Texture loader to bind canonical reference identity features onto character meshes
     const textureLoader = new THREE.TextureLoader();
     const canonicalTexture = textureLoader.load(
-      '/assets/character/reference_canonical.png',
+      'assets/character/reference_canonical.png',
       (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
       },
       undefined,
       () => {
-        // Fallback gracefully to procedural material if texture is unavailable
+        // Fallback gracefully if running in environment where static asset path is relative
       }
     );
 

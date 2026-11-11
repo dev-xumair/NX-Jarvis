@@ -46,7 +46,7 @@ interface AgentContextType {
     dockPosition?: any;
     scale?: any;
     isFloating?: boolean;
-    characterPose?: 'full' | 'bust';
+    characterPose?: 'full' | 'bust' | 'standing' | 'sitting' | 'perched' | 'leaning';
     command?: string;
   }) => Promise<any>;
   startVoiceListening: () => void;
@@ -559,7 +559,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       dockPosition?: any;
       scale?: any;
       isFloating?: boolean;
-      characterPose?: 'full' | 'bust';
+      characterPose?: 'full' | 'bust' | 'standing' | 'sitting' | 'perched' | 'leaning';
       command?: string;
     }) => {
       // Optimistic update

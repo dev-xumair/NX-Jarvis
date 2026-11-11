@@ -159,7 +159,7 @@ export interface CompanionState {
   dockPosition: 'side_left' | 'side_right' | 'dock_bottom_right' | 'center' | 'top_right' | 'top_left' | 'hidden';
   scale: 'small' | 'medium' | 'large';
   mood: 'friendly' | 'listening' | 'thinking' | 'speaking' | 'executing' | 'focused' | 'waiting';
-  characterPose?: 'full' | 'bust';
+  characterPose?: 'full' | 'bust' | 'standing' | 'sitting' | 'perched' | 'leaning';
   visualMode?: AvatarPoseMode;
   posture?: CharacterPosture;
   animationState?: CharacterAnimationState;

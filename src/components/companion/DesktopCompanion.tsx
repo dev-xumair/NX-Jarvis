@@ -207,7 +207,7 @@ export const DesktopCompanion: React.FC = () => {
                   controlCompanion({
                     characterPose: 'full',
                     command: isSitting ? 'stand' : 'sit',
-                  } as any)
+                  })
                 }
                 className="p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer text-slate-400 hover:text-sky-300"
                 title={isSitting ? 'Khari ho jao (Stand)' : 'Beth jao (Sit)'}
@@ -221,7 +221,7 @@ export const DesktopCompanion: React.FC = () => {
                   if (isAttached) {
                     controlCompanion({
                       command: 'restore',
-                    } as any);
+                    });
                   } else {
                     // Use characterSeatManager to query Chrome profile and compute attachment anchor
                     const chromeProfile = characterSeatManager.findMatchingProfile('chrome.exe', 'Google Chrome');
@@ -229,11 +229,11 @@ export const DesktopCompanion: React.FC = () => {
                       controlCompanion({
                         command: 'attach_browser',
                         characterPose: chromeProfile.preferredPose,
-                      } as any);
+                      });
                     } else {
                       controlCompanion({
                         command: 'attach_browser',
-                      } as any);
+                      });
                     }
                   }
                 }}
@@ -252,7 +252,7 @@ export const DesktopCompanion: React.FC = () => {
                     dockPosition: 'center',
                     isFloating: true,
                     command: 'center',
-                  } as any)
+                  })
                 }
                 className="p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer text-slate-400 hover:text-sky-300"
                 title="Beech mein jaake beth jaye (Center Home)"
