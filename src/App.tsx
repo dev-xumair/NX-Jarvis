@@ -30,6 +30,17 @@ const AppContent: React.FC = () => {
     color: theme.textColor,
   } as React.CSSProperties;
 
+  // 0. TRANSPARENT COMPANION OVERLAY WINDOW MODE (?overlay=true)
+  const isOverlayMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('overlay') === 'true';
+
+  if (isOverlayMode) {
+    return (
+      <div className="h-screen w-screen overflow-hidden bg-transparent select-none relative pointer-events-auto">
+        <DesktopCompanion />
+      </div>
+    );
+  }
+
   // 1. MINIMIZED FLOATING DESKTOP COMPANION MODE (Living Assistant on Desktop)
   if (desktopMode === 'floating_companion') {
     return (
