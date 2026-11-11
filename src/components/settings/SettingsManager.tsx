@@ -165,9 +165,10 @@ export const SettingsManager: React.FC = () => {
           { id: 'THEME', label: 'Theme & Appearance', icon: Palette },
           { id: 'ALIASES', label: 'Wake Aliases (CRUD)', icon: Sliders },
           { id: 'COMPANION', label: 'Desktop Companion', icon: Sparkles },
-          { id: 'APIS', label: 'Multi-Gemini Quotas', icon: Cpu },
+          { id: 'APIS', label: 'AI & Voice Providers', icon: Cpu },
           { id: 'SKILLS', label: 'Portable Skills (SKILL.md)', icon: Layers },
           { id: 'MOBILE', label: 'Wireless Mobile Bridge', icon: Smartphone },
+          { id: 'HARDWARE', label: 'Hardware & USB Diagnostics', icon: Terminal },
           { id: 'VERIFICATION', label: 'Verification Suite (VT-01-10)', icon: CheckCircle2 },
           { id: 'DIAGNOSTICS', label: 'Diagnostics & .EXE', icon: ShieldCheck },
         ].map((tab) => {
@@ -794,6 +795,75 @@ export const SettingsManager: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: HARDWARE & DYNAMIC USB DIAGNOSTICS */}
+      {activeTab === ('HARDWARE' as any) && (
+        <div className="space-y-6">
+          <div className="p-5 rounded-xl border space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm tracking-tight" style={{ color: 'var(--text-main)' }}>
+                  Hardware Telemetry & USB Volume Inspection
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Real-time detection of processor cores, physical RAM, audio devices, and dynamic storage partitions.
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs font-mono font-bold">
+                DIAGNOSTICS LIVE
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                <span className="text-slate-400 text-[11px] block uppercase">Processor & Cores</span>
+                <span className="font-bold text-sky-400 text-sm block">Intel x64 Architecture</span>
+                <span className="text-slate-300 text-[11px]">Active CPU Load: {telemetry.cpuLoad}%</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                <span className="text-slate-400 text-[11px] block uppercase">Physical Memory</span>
+                <span className="font-bold text-emerald-400 text-sm block">
+                  {(telemetry.ramUsedMB / 1024).toFixed(1)} GB / {(telemetry.ramTotalMB / 1024).toFixed(1)} GB
+                </span>
+                <span className="text-slate-300 text-[11px]">Low-end PC Guard Active</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                <span className="text-slate-400 text-[11px] block uppercase">Storage Volumes</span>
+                <span className="font-bold text-amber-400 text-sm block">{telemetry.storageDevices.length} Volumes Detected</span>
+                <span className="text-slate-300 text-[11px]">C: OS Drive Guard Protected</span>
+              </div>
+            </div>
+
+            <h4 className="font-bold text-xs uppercase tracking-wider text-slate-300 pt-2">
+              Detected Disks & Removable USB Devices
+            </h4>
+
+            <div className="space-y-2">
+              {telemetry.storageDevices.map((d) => (
+                <div key={d.letter} className="p-3 rounded-lg border border-slate-800 bg-slate-900/40 flex items-center justify-between text-xs font-mono">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-sky-400">{d.letter}</span>
+                    <span className="text-slate-200">{d.label}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                      {d.filesystem || 'NTFS'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-slate-400">
+                    <span>Free: <strong className="text-emerald-400">{d.freeGB} GB</strong> / {d.totalGB} GB</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                      d.isProtected ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-sky-950 text-sky-400 border border-sky-800'
+                    }`}>
+                      {d.isProtected ? 'OS PROTECTED' : d.type}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

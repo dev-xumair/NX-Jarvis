@@ -36,6 +36,10 @@ import {
 import { GeminiRouter } from './server/geminiRouter.ts';
 import { scrubSecrets } from './server/security.ts';
 import { SkillsManager } from './server/skills.ts';
+import { HardwareDiagnostics } from './server/hardware.ts';
+import { AIProviderRouter, MODEL_REGISTRY, type ModelStrategy } from './server/providers/aiProvider.ts';
+import { VoiceProviderManager } from './server/providers/voiceProvider.ts';
+import { SafeLogger } from './server/logger.ts';
 
 dotenv.config();
 
@@ -62,19 +66,46 @@ const chatMessages: ChatMessage[] = [
 // API ROUTES & CONTROLLERS
 // -------------------------------------------------------------
 
-// 1. Real System Telemetry
+// 1. Real System Telemetry & Hardware Diagnostics
 app.get('/api/agent/telemetry', async (req: Request, res: Response) => {
   const isExecuting = orchestrator.getState() === 'EXECUTING';
   const telemetry = await getLiveTelemetry(isExecuting);
+  const hardwareReport = await HardwareDiagnostics.inspectSystem();
 
   res.json({
     telemetry,
+    hardware: hardwareReport,
     agentState: orchestrator.getState(),
     companion: orchestrator.getCompanion(),
     taskQueue: orchestrator.getActiveTasks(),
     historyTasks: orchestrator.getTaskHistory(),
     recentActions: orchestrator.getRecentActions().slice(0, 10),
   });
+});
+
+// Hardware Diagnostics endpoint
+app.get('/api/hardware/diagnostics', async (req: Request, res: Response) => {
+  const report = await HardwareDiagnostics.inspectSystem();
+  res.json({ hardware: report });
+});
+
+// AI & Voice Provider Endpoints
+app.get('/api/providers/models', (req: Request, res: Response) => {
+  res.json({ models: MODEL_REGISTRY });
+});
+
+app.get('/api/providers/voices', (req: Request, res: Response) => {
+  res.json({ voices: VoiceProviderManager.getProfiles() });
+});
+
+app.post('/api/voice/synthesize', async (req: Request, res: Response) => {
+  const { text, voiceId } = req.body;
+  const result = await VoiceProviderManager.synthesizeSpeech(text || 'Ji, main tayyar hoon', voiceId);
+  res.json({ success: true, result });
+});
+
+app.get('/api/system/logs', (req: Request, res: Response) => {
+  res.json({ logs: SafeLogger.getRecentLogs() });
 });
 
 // 2. Companion State & Control

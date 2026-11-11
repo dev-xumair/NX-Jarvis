@@ -5,6 +5,10 @@ import { isDestructiveSystemPath, validate10PointPreFlight } from '../server/fil
 import { SkillsManager } from '../server/skills.ts';
 import { LocalThinkerWorker } from '../server/workers.ts';
 import { GeminiRouter } from '../server/geminiRouter.ts';
+import { AIProviderRouter, MODEL_REGISTRY } from '../server/providers/aiProvider.ts';
+import { VoiceProviderManager } from '../server/providers/voiceProvider.ts';
+import { HardwareDiagnostics } from '../server/hardware.ts';
+import { SafeLogger } from '../server/logger.ts';
 
 describe('NX AI Core Test Suite', () => {
   it('should transition orchestrator states and update companion expression', () => {
@@ -94,5 +98,41 @@ describe('NX AI Core Test Suite', () => {
     expect(SkillsManager.validateSkillPermission(skill!, 'D:\\ShopMedia', 'read')).toBe(true);
     expect(SkillsManager.validateSkillPermission(skill!, 'F:\\CustomerUSB', 'write')).toBe(true);
     expect(SkillsManager.validateSkillPermission(skill!, 'C:\\Windows', 'write')).toBe(false);
+  });
+
+  it('should route models based on strategy and complexity in AIProviderRouter', () => {
+    const fast = AIProviderRouter.selectModel('FAST');
+    expect(fast.id).toBe('gemini-2.5-flash-lite');
+
+    const best = AIProviderRouter.selectModel('BEST');
+    expect(best.id).toBe('gemini-2.5-pro');
+
+    const autoComplex = AIProviderRouter.selectModel('AUTO', 'complex');
+    expect(autoComplex.id).toBe('gemini-2.5-pro');
+
+    const local = AIProviderRouter.selectModel('LOCAL');
+    expect(local.isLocal).toBe(true);
+  });
+
+  it('should support ElevenLabs voice provider with WebSpeech local fallback', async () => {
+    const profiles = VoiceProviderManager.getProfiles();
+    expect(profiles.length).toBeGreaterThanOrEqual(2);
+
+    const res = await VoiceProviderManager.synthesizeSpeech('Testing speech output');
+    expect(res.textSpoken).toBe('Testing speech output');
+    expect(['elevenlabs', 'webspeech_local']).toContain(res.providerUsed);
+  });
+
+  it('should perform real hardware inspection with CPU, memory, and USB diagnostics', async () => {
+    const report = await HardwareDiagnostics.inspectSystem();
+    expect(report.cpu.cores).toBeGreaterThan(0);
+    expect(report.memory.totalGB).toBeGreaterThan(0);
+    expect(report.usbDevices.length).toBeGreaterThan(0);
+  });
+
+  it('should record structured logs and scrub secrets from log lines', () => {
+    const entry = SafeLogger.info('SYSTEM', 'Connecting with api_key: AIzaSy_Secret_12345');
+    expect(entry.message).not.toContain('AIzaSy_Secret_12345');
+    expect(entry.message).toContain('[REDACTED_SECRET]');
   });
 });
