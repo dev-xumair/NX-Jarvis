@@ -44,7 +44,7 @@ function createMainWindow() {
     height: 1080,
     minWidth: 1280,
     minHeight: 720,
-    title: 'NX AI — Autonomous Windows Agent & Desktop Companion',
+    title: 'NX AI — Autonomous Windows Agent & Desktop Companion (Powered by DevX_NX)',
     icon: path.join(__dirname, 'public', 'favicon.ico'),
     frame: true,
     backgroundColor: '#0c1017',
@@ -58,13 +58,32 @@ function createMainWindow() {
   mainWindow.loadURL(SERVER_URL);
 
   mainWindow.on('close', (e) => {
-    // Minimize to tray instead of hard quitting if user prefers
     if (!app.isQuitting) {
       e.preventDefault();
       mainWindow.hide();
     }
     return false;
   });
+}
+
+function createCompanionOverlayWindow() {
+  companionWindow = new BrowserWindow({
+    width: 380,
+    height: 520,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      enableRemoteModule: false,
+    },
+  });
+
+  companionWindow.loadURL(`${SERVER_URL}?overlay=true`);
+  companionWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 }
 
 function createTray() {
@@ -124,6 +143,7 @@ app.whenReady().then(() => {
   setTimeout(() => {
     createMainWindow();
     createTray();
+    createCompanionOverlayWindow();
 
     // Register Global Hotkey: Alt+Space to toggle NX AI
     globalShortcut.register('Alt+Space', () => {

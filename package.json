@@ -1,8 +1,8 @@
 {
   "name": "nx-ai",
   "version": "3.0.0",
-  "description": "NX AI — Autonomous Windows Agent and Desktop Companion by Dev_X_NX",
-  "author": "Dev_X_NX",
+  "description": "NX AI — Autonomous Windows Agent and Desktop Companion (Powered by DevX_NX)",
+  "author": "DevX_NX",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -30,7 +30,6 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",

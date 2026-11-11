@@ -53,8 +53,8 @@ export const Sidebar: React.FC = () => {
             <div className="font-bold text-base tracking-tight leading-none" style={{ color: 'var(--text-main)' }}>
               NX AI
             </div>
-            <div className="text-[11px] font-mono mt-1" style={{ color: 'var(--text-muted)' }}>
-              Autonomous Companion
+            <div className="text-[10px] font-mono mt-1 text-sky-400">
+              Powered by DevX_NX
             </div>
           </div>
         </div>

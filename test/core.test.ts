@@ -4,7 +4,6 @@ import { scrubSecrets } from '../server/security.ts';
 import { isDestructiveSystemPath, validate10PointPreFlight } from '../server/fileOps.ts';
 import { SkillsManager } from '../server/skills.ts';
 import { LocalThinkerWorker } from '../server/workers.ts';
-import { GeminiRouter } from '../server/geminiRouter.ts';
 import { AIProviderRouter, MODEL_REGISTRY } from '../server/providers/aiProvider.ts';
 import { VoiceProviderManager } from '../server/providers/voiceProvider.ts';
 import { HardwareDiagnostics } from '../server/hardware.ts';
@@ -83,12 +82,12 @@ describe('NX AI Core Test Suite', () => {
     expect(companionIntent.domain).toBe('COMPANION');
   });
 
-  it('should isolate project quotas and manage cooldown in GeminiRouter', () => {
+  it('should isolate project quotas and manage cooldown in AIProviderRouter', () => {
     const testProjectId = 'test-gcp-project-isolation';
-    expect(GeminiRouter.isProjectCoolingDown(testProjectId)).toBe(false);
+    expect(AIProviderRouter.isProjectCoolingDown(testProjectId)).toBe(false);
 
-    GeminiRouter.markProjectCooldown(testProjectId, 60000);
-    expect(GeminiRouter.isProjectCoolingDown(testProjectId)).toBe(true);
+    AIProviderRouter.markCooldown(testProjectId, 60000);
+    expect(AIProviderRouter.isProjectCoolingDown(testProjectId)).toBe(true);
   });
 
   it('should enforce skills permission boundaries', () => {

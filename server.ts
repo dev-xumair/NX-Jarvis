@@ -33,7 +33,6 @@ import {
   LocalThinkerWorker,
   IndependentVerifierWorker,
 } from './server/workers.ts';
-import { GeminiRouter } from './server/geminiRouter.ts';
 import { scrubSecrets } from './server/security.ts';
 import { SkillsManager } from './server/skills.ts';
 import { HardwareDiagnostics } from './server/hardware.ts';
@@ -441,13 +440,13 @@ app.post('/api/agent/command', async (req: Request, res: Response) => {
     });
   }
 
-  // General / Reasoning Query via GeminiRouter
+  // General / Reasoning Query via AIProviderRouter
   const systemPrompt = `You are Saba, the 3D anime AI companion and autonomous Windows operator for NX AI.
 You operate on an HP 800 G1 desktop PC in Pakistan.
 Speak naturally, warmly, and respectfully in simple Roman Urdu (or English/Urdu script if the user speaks that language).
 Guiding principle: "Kaam karo, verify karo, phir bolo". Always be truthful about actual computer state.`;
 
-  const aiResult = await GeminiRouter.executeWithFailover(cleanPrompt, systemPrompt);
+  const aiResult = await AIProviderRouter.executePrompt(cleanPrompt, systemPrompt, 'AUTO');
   orchestrator.setState('COMPLETED');
   orchestrator.updateCompanion({ lastSpokenPhrase: aiResult.text });
 
@@ -464,8 +463,8 @@ Guiding principle: "Kaam karo, verify karo, phir bolo". Always be truthful about
     responseEnglish: aiResult.text,
     companion: orchestrator.getCompanion(),
     agentState: 'IDLE',
-    providerUsed: aiResult.profileUsed?.displayName || 'Offline Rule Fallback',
-    offlineFallback: aiResult.offlineFallback,
+    providerUsed: aiResult.providerName,
+    offlineFallback: aiResult.isOffline,
   });
 });
 
@@ -622,7 +621,7 @@ app.post('/api/providers/profiles/:id/test', async (req: Request, res: Response)
   if (!profile) return res.status(404).json({ error: 'Profile not found.' });
 
   const start = Date.now();
-  if (GeminiRouter.isProjectCoolingDown(profile.projectId)) {
+  if (AIProviderRouter.isProjectCoolingDown(profile.projectId)) {
     return res.json({
       success: false,
       healthStatus: 'COOLING_DOWN',
@@ -631,7 +630,7 @@ app.post('/api/providers/profiles/:id/test', async (req: Request, res: Response)
   }
 
   try {
-    const resAi = await GeminiRouter.executeWithFailover('Ping. Respond with OK', 'Respond strictly with OK');
+    const resAi = await AIProviderRouter.executePrompt('Ping. Respond with OK', 'Respond strictly with OK', 'FAST');
     profile.latencyMs = Date.now() - start;
     profile.healthStatus = 'HEALTHY';
     profile.requestCount += 1;

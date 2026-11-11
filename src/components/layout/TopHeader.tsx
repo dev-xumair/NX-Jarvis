@@ -102,7 +102,7 @@ export const TopHeader: React.FC = () => {
               color: 'var(--text-dim)',
             }}
           >
-            Windows PC v3.0
+            Powered by DevX_NX
           </span>
         </div>
 
