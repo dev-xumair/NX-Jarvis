@@ -5,760 +5,1413 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type {
+  AIPlatformId,
   AgentState,
-  CompanionState,
-  TaskQueueItem,
+  AuditLogEntry,
   AutonomousAction,
-  LiveSystemTelemetry,
-  SmartMemoryItem,
-  CustomThemeConfig,
-  WakeAliasItem,
-  ProviderProfile,
+  BehaviorProfile,
+  BrowserSessionInfo,
+  CapabilityRecord,
   ChatMessage,
+  CustomerFieldKey,
+  CustomerRecord,
+  CustomerRecordView,
+  CustomThemeConfig,
+  EventBusEvent,
+  InstructionItem,
+  InstructionSource,
+  LiveSystemTelemetry,
+  MemoryLayer,
+  MobileBridgeStatus,
+  ModelRegistryRecord,
+  NotificationItem,
+  OperatingMode,
+  PersonaConfig,
+  ProviderDiagnosticAttempt,
+  ProviderProfile,
+  SkillManifest,
+  SmartMemoryItem,
+  TaskQueueItem,
+  ToolContract,
+  UserPreferencesConfig,
+  VoiceEngineState,
+  WakeAliasItem,
+  WorkerContract,
 } from '../types/agent.ts';
+import { DEFAULT_NX_THEME } from '../themes/presets.ts';
+import { apiClient } from '../lib/apiClient.ts';
+import {
+  AudioSession,
+  type AudioDeviceOption,
+  type MicPermissionStatus,
+  type TtsVoiceOption,
+} from '../lib/audioSession.ts';
+
+export type NavSection = 'dashboard' | 'workspace' | 'intelligence' | 'settings';
+
+export interface SubsystemHealthItem {
+  id: string;
+  name: string;
+  status: string;
+  detail: string;
+}
+
+export interface ModelRegistrySummaryState {
+  total: number;
+  verified: number;
+  partiallyVerified: number;
+  failed: number;
+  unavailable: number;
+  deprecated: number;
+  notSupported: number;
+  newCount: number;
+}
+
+export interface ToastNotice {
+  id: string;
+  title: string;
+  message: string;
+  source: string;
+  severity: 'info' | 'success' | 'warning' | 'error';
+  dedupeKey: string;
+  occurrences: number;
+  actionable?: boolean;
+  actionLabel?: string;
+  actionTarget?: NavSection;
+}
+
+const DEFAULT_PERSONA_STATE: PersonaConfig = {
+  name: 'NX',
+  voiceGender: 'female',
+  ownerLabel: 'Boss',
+  friendliness: 82,
+  humor: 45,
+  affection: 38,
+  formality: 55,
+  initiativeLevel: 65,
+  activeProfileId: 'JARVIS_OPERATOR',
+};
+
+const DEFAULT_PREFERENCES: UserPreferencesConfig = {
+  preferredLanguage: 'auto',
+  responseStyle: 'concise',
+  confirmHighRisk: true,
+  preferredBrowser: 'chrome',
+  voiceEnabled: true,
+  voiceRate: 1.0,
+  voiceVolume: 1.0,
+  voiceLang: 'auto',
+  notificationsEnabled: true,
+  sidebarState: 'expanded',
+  sidebarPinned: true,
+  operatingMode: 'OWNER_PRIVATE',
+  autoCustomerMode: false,
+  proactiveLevel: 'NORMAL',
+  autonomousSafeWrites: false,
+  customerRetentionDays: 365,
+  customerFieldsEnabled: {
+    phone: true,
+    alternatePhone: true,
+    cnic: true,
+    address: true,
+    deviceModel: true,
+    imei: true,
+    paymentStatus: true,
+    accessoriesPurchased: true,
+    warrantyInfo: true,
+    staffNotes: true,
+  },
+  persona: DEFAULT_PERSONA_STATE,
+};
 
 interface AgentContextType {
   agentState: AgentState;
-  companion: CompanionState;
+  backendOnline: boolean;
   telemetry: LiveSystemTelemetry;
   taskQueue: TaskQueueItem[];
   historyTasks: TaskQueueItem[];
   recentActions: AutonomousAction[];
+  events: EventBusEvent[];
+  auditLogs: AuditLogEntry[];
   memories: SmartMemoryItem[];
+  instructions: InstructionItem[];
+  preferences: UserPreferencesConfig;
+  operatingMode: OperatingMode;
+  persona: PersonaConfig;
+  behaviorProfiles: BehaviorProfile[];
+  capabilities: CapabilityRecord[];
+  customers: CustomerRecordView[];
+  providerDiagnostics: ProviderDiagnosticAttempt[];
+  selfHealth: SubsystemHealthItem[];
+  notifications: NotificationItem[];
+  unreadNotificationsCount: number;
+  toasts: ToastNotice[];
   aliases: WakeAliasItem[];
   theme: CustomThemeConfig;
   providerProfiles: ProviderProfile[];
+  modelRegistry: ModelRegistryRecord[];
+  modelSummary: ModelRegistrySummaryState;
+  skills: SkillManifest[];
+  workers: WorkerContract[];
+  tools: ToolContract[];
+  mobileBridge: MobileBridgeStatus | null;
+  browserSession: BrowserSessionInfo | null;
   chatMessages: ChatMessage[];
-  activeNav: 'dashboard' | 'history' | 'memory' | 'settings';
+  activeNav: NavSection;
+  sidebarState: 'expanded' | 'collapsed' | 'closed';
+  sidebarDrawerOpen: boolean;
+  isSendingCommand: boolean;
+  voiceState: VoiceEngineState;
+  micPermission: MicPermissionStatus;
+  audioDevices: AudioDeviceOption[];
+  ttsVoices: TtsVoiceOption[];
   isListening: boolean;
   isSpeaking: boolean;
   liveTranscript: string;
   micVolume: number;
-  lipSyncFrame: number;
-  desktopMode: 'full_studio' | 'floating_companion';
+  voiceNotice: string | null;
   interactionMode: 'voice' | 'chat';
-  playChime: (type: 'wake' | 'success' | 'alert') => void;
-  setActiveNav: (nav: 'dashboard' | 'history' | 'memory' | 'settings') => void;
-  setDesktopMode: (mode: 'full_studio' | 'floating_companion') => void;
+  setActiveNav: (nav: NavSection) => void;
+  setSidebarState: (state: 'expanded' | 'collapsed' | 'closed') => void;
+  setSidebarDrawerOpen: (open: boolean) => void;
   setInteractionMode: (mode: 'voice' | 'chat') => void;
+  clearVoiceNotice: () => void;
+  dismissToast: (id: string) => void;
+  notifyUser: (input: Omit<ToastNotice, 'id' | 'occurrences'>) => void;
+  markAllNotificationsRead: () => Promise<void>;
+  clearNonCriticalNotifications: () => Promise<void>;
   sendCommand: (prompt: string) => Promise<any>;
-  controlCompanion: (opts: {
-    dockPosition?: any;
-    scale?: any;
-    isFloating?: boolean;
-    characterPose?: 'full' | 'bust';
-    command?: string;
-  }) => Promise<any>;
+  cancelActiveCommand: () => void;
+  cancelTask: (taskId: string) => Promise<void>;
+  confirmTask: (taskId: string, approved: boolean) => Promise<void>;
   startVoiceListening: () => void;
   stopVoiceListening: () => void;
   bargeInInterrupt: () => void;
   speakNatural: (text: string) => void;
+  refreshAudioDevices: () => Promise<void>;
+  refreshTelemetry: () => Promise<void>;
+  refreshSelfHealth: () => Promise<void>;
+  refreshCapabilities: () => Promise<void>;
+  refreshPersona: () => Promise<void>;
+  refreshBehaviorProfiles: () => Promise<void>;
+  refreshCustomers: (query?: string, includeArchived?: boolean) => Promise<void>;
+  toggleOperatingMode: (targetMode?: OperatingMode) => Promise<void>;
+  updatePersona: (updates: Partial<PersonaConfig>) => Promise<{ ok: boolean; error?: string }>;
+  createBehaviorProfile: (profile: Partial<BehaviorProfile> & { displayName: string }) => Promise<{ ok: boolean; error?: string }>;
+  updateBehaviorProfile: (id: string, updates: Partial<BehaviorProfile>) => Promise<{ ok: boolean; error?: string }>;
+  deleteBehaviorProfile: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  createCustomer: (input: {
+    name: string;
+    phone?: string;
+    alternatePhone?: string;
+    cnic?: string;
+    address?: string;
+    deviceModel?: string;
+    imei?: string;
+    repairNotes?: string;
+    paymentStatus?: CustomerRecord['paymentStatus'];
+    accessoriesPurchased?: string;
+    warrantyInfo?: string;
+    staffNotes?: string;
+    tags?: string[];
+  }) => Promise<{ ok: boolean; customer?: CustomerRecordView; error?: string }>;
+  getCustomerDetail: (id: string, reveal?: boolean) => Promise<{ ok: boolean; customer?: CustomerRecordView; error?: string; code?: string }>;
+  updateCustomerRecord: (id: string, updates: Partial<CustomerRecord>) => Promise<{ ok: boolean; customer?: CustomerRecordView; error?: string }>;
+  addCustomerServiceEntry: (
+    id: string,
+    input: {
+      deviceModel?: string;
+      issue: string;
+      resolution?: string;
+      amountPKR?: number;
+      paymentStatus?: CustomerRecord['paymentStatus'];
+      warrantyDays?: number;
+    }
+  ) => Promise<{ ok: boolean; customer?: CustomerRecordView; error?: string }>;
+  archiveCustomerRecord: (id: string, archived?: boolean) => Promise<{ ok: boolean; error?: string }>;
+  deleteCustomerRecord: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  exportSanitizedCustomers: (includeArchived?: boolean) => Promise<any>;
+  exportCustomerBackup: () => Promise<{ ok: boolean; backup?: any; error?: string }>;
+  restoreCustomerBackup: (backup: any) => Promise<{ ok: boolean; restoredCount?: number; error?: string }>;
+  listSafeFiles: (directory: string) => Promise<any>;
+  createSafeFolder: (folderPath: string) => Promise<any>;
+  createSafeFile: (filePath: string, content?: string) => Promise<any>;
+  scanMediaFiles: (dirs?: string[]) => Promise<any>;
+  addMemoryItem: (content: string, layer?: MemoryLayer) => Promise<{ ok: boolean; error?: string }>;
+  updateMemoryItem: (id: string, updates: { content?: string; layer?: MemoryLayer }) => Promise<{ ok: boolean; error?: string }>;
   deleteMemory: (id: string) => Promise<void>;
-  addAlias: (alias: string, sensitivity?: number) => Promise<void>;
+  addInstruction: (input: {
+    title: string;
+    content: string;
+    source?: InstructionSource;
+    scope?: InstructionItem['scope'];
+  }) => Promise<{ ok: boolean; error?: string }>;
+  updateInstruction: (id: string, updates: Partial<Pick<InstructionItem, 'title' | 'content' | 'enabled' | 'scope'>>) => Promise<{ ok: boolean; error?: string }>;
+  deleteInstruction: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  updatePreferences: (updates: Partial<UserPreferencesConfig>) => Promise<void>;
+  addAlias: (
+    alias: string,
+    sensitivity?: number,
+    options?: Partial<Pick<WakeAliasItem, 'behaviorProfileId' | 'language' | 'priority' | 'contextRules'>>
+  ) => Promise<void>;
   updateAlias: (id: string, updates: Partial<WakeAliasItem>) => Promise<void>;
   deleteAlias: (id: string) => Promise<void>;
+  testWakePhrase: (phrase: string) => Promise<any>;
   updateTheme: (updates: Partial<CustomThemeConfig>) => Promise<void>;
-  addProviderProfile: (profile: any) => Promise<any>;
+  addProviderProfile: (profile: {
+    platform: AIPlatformId;
+    apiKey: string;
+    displayName?: string;
+    assignedRole?: ProviderProfile['assignedRole'];
+  }) => Promise<any>;
+  addBulkProviderProfiles: (payload: {
+    platform: AIPlatformId;
+    keysText: string;
+    defaultRole?: ProviderProfile['assignedRole'];
+  }) => Promise<any>;
+  updateProviderProfile: (id: string, updates: Partial<ProviderProfile>) => Promise<void>;
   testProviderProfile: (id: string) => Promise<any>;
+  validateAllProviderProfiles: () => Promise<any>;
   deleteProviderProfile: (id: string) => Promise<void>;
+  toggleSkill: (skillId: string) => Promise<void>;
+  testSkill: (skillId: string, query?: string, target?: string) => Promise<any>;
+  runSkill: (skillId: string, query?: string, target?: string) => Promise<any>;
 }
 
+const emptyMetric = (unit: string) => ({
+  value: null,
+  unit,
+  source: 'pending',
+  capturedAt: 0,
+  freshnessMs: 0,
+  status: 'UNAVAILABLE' as const,
+});
+
 const defaultTelemetry: LiveSystemTelemetry = {
-  cpuLoad: 12,
-  ramUsedMB: 3820,
-  ramTotalMB: 6144,
-  diskActivity: { readSpeedMBs: 1.2, writeSpeedMBs: 0.4, activeDrive: 'D:\\' },
-  networkSpeedKBps: 16,
+  cpuLoad: emptyMetric('%'),
+  ramUsedMB: emptyMetric('MB'),
+  ramTotalMB: emptyMetric('MB'),
+  nxProcessRssMB: emptyMetric('MB'),
+  diskActivity: {
+    readSpeedMBs: emptyMetric('MB/s'),
+    writeSpeedMBs: emptyMetric('MB/s'),
+    activeDrive: '—',
+  },
+  networkSpeedKBps: emptyMetric('KB/s'),
+  platformInfo: {
+    os: 'unknown',
+    release: '',
+    arch: '',
+    hostname: '',
+    cpuCores: 0,
+    uptimeSeconds: 0,
+  },
   activeWindows: [],
+  processesStatus: 'UNAVAILABLE',
   storageDevices: [],
-  lastUpdated: Date.now(),
-};
-
-const defaultCompanion: CompanionState = {
-  isFloating: false,
-  dockPosition: 'dock_bottom_right',
-  scale: 'medium',
-  mood: 'friendly',
-  characterPose: 'full',
-  currentThought: 'Monitoring system & ready for voice or chat commands.',
-  lastSpokenPhrase: 'Main tayyar hoon. Aap koi bhi task de sakte hain.',
-};
-
-const defaultTheme: CustomThemeConfig = {
-  id: 'theme-graphite-dark',
-  name: 'Graphite Dark',
-  mode: 'dark',
-  accentColor: '#38bdf8',
-  bgCanvas: '#0c1017',
-  surfaceColor: '#141b24',
-  surfaceElevated: '#1b2431',
-  textColor: '#f1f5f9',
-  textMuted: '#94a3b8',
-  borderColor: '#263345',
-  density: 'comfortable',
-  roundedRadius: '0.75rem',
+  lastUpdated: 0,
 };
 
 const AgentContext = createContext<AgentContextType | null>(null);
 
 export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [agentState, setAgentState] = useState<AgentState>('IDLE');
-  const [companion, setCompanion] = useState<CompanionState>(defaultCompanion);
+  const [backendOnline, setBackendOnline] = useState(true);
   const [telemetry, setTelemetry] = useState<LiveSystemTelemetry>(defaultTelemetry);
   const [taskQueue, setTaskQueue] = useState<TaskQueueItem[]>([]);
   const [historyTasks, setHistoryTasks] = useState<TaskQueueItem[]>([]);
   const [recentActions, setRecentActions] = useState<AutonomousAction[]>([]);
+  const [events, setEvents] = useState<EventBusEvent[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [memories, setMemories] = useState<SmartMemoryItem[]>([]);
+  const [instructions, setInstructions] = useState<InstructionItem[]>([]);
+  const [preferences, setPreferences] = useState<UserPreferencesConfig>(DEFAULT_PREFERENCES);
+  const [persona, setPersona] = useState<PersonaConfig>(DEFAULT_PERSONA_STATE);
+  const [behaviorProfiles, setBehaviorProfiles] = useState<BehaviorProfile[]>([]);
+  const [capabilities, setCapabilities] = useState<CapabilityRecord[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecordView[]>([]);
+  const [providerDiagnostics, setProviderDiagnostics] = useState<ProviderDiagnosticAttempt[]>([]);
+  const [selfHealth, setSelfHealth] = useState<SubsystemHealthItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [toasts, setToasts] = useState<ToastNotice[]>([]);
   const [aliases, setAliases] = useState<WakeAliasItem[]>([]);
-  const [theme, setThemeState] = useState<CustomThemeConfig>(defaultTheme);
+  const [theme, setThemeState] = useState<CustomThemeConfig>(DEFAULT_NX_THEME);
   const [providerProfiles, setProviderProfiles] = useState<ProviderProfile[]>([]);
+  const [modelRegistry, setModelRegistry] = useState<ModelRegistryRecord[]>([]);
+  const [modelSummary, setModelSummary] = useState<ModelRegistrySummaryState>({
+    total: 0,
+    verified: 0,
+    partiallyVerified: 0,
+    failed: 0,
+    unavailable: 0,
+    deprecated: 0,
+    notSupported: 0,
+    newCount: 0,
+  });
+  const [skills, setSkills] = useState<SkillManifest[]>([]);
+  const [workers, setWorkers] = useState<WorkerContract[]>([]);
+  const [tools, setTools] = useState<ToolContract[]>([]);
+  const [mobileBridge, setMobileBridge] = useState<MobileBridgeStatus | null>(null);
+  const [browserSession, setBrowserSession] = useState<BrowserSessionInfo | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [activeNav, setActiveNav] = useState<'dashboard' | 'history' | 'memory' | 'settings'>('dashboard');
-  const [desktopMode, setDesktopMode] = useState<'full_studio' | 'floating_companion'>('full_studio');
+  const [activeNav, setActiveNav] = useState<NavSection>('dashboard');
+  const [sidebarState, setSidebarStateLocal] = useState<'expanded' | 'collapsed' | 'closed'>('expanded');
+  const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
 
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isSendingCommand, setIsSendingCommand] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceEngineState>('IDLE');
+  const [micPermission, setMicPermission] = useState<MicPermissionStatus>('prompt');
+  const [audioDevices, setAudioDevices] = useState<AudioDeviceOption[]>([]);
+  const [ttsVoices, setTtsVoices] = useState<TtsVoiceOption[]>([]);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [micVolume, setMicVolume] = useState(0);
-  const [lipSyncFrame, setLipSyncFrame] = useState(0);
-  const [interactionMode, setInteractionMode] = useState<'voice' | 'chat'>('voice');
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const [interactionMode, setInteractionMode] = useState<'voice' | 'chat'>('chat');
 
-  const recognitionRef = useRef<any>(null);
-  const synthRef = useRef<SpeechSynthesis | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const isListening = voiceState === 'LISTENING' || voiceState === 'REQUESTING_PERMISSION';
+  const isSpeaking = voiceState === 'SPEAKING';
 
-  // Animated mouth lip-sync ticker during speaking
-  useEffect(() => {
-    if (!isSpeaking) {
-      setLipSyncFrame(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      setLipSyncFrame((prev) => (prev + 1) % 4);
-    }, 130);
-    return () => clearInterval(interval);
-  }, [isSpeaking]);
+  const audioSessionRef = useRef<AudioSession | null>(null);
+  const activeCommandAbortRef = useRef<AbortController | null>(null);
+  const commandSequenceRef = useRef(0);
+  const conversationIdRef = useRef('conv-default');
+  const sendCommandRef = useRef<(prompt: string) => Promise<any>>(async () => null);
+  const preferencesRef = useRef<UserPreferencesConfig>(DEFAULT_PREFERENCES);
+  preferencesRef.current = preferences;
 
-  // Telemetry Poller
-  const fetchTelemetry = useCallback(async () => {
-    try {
-      const res = await fetch('/api/agent/telemetry');
-      if (res.ok) {
-        const data = await res.json();
-        setTelemetry(data.telemetry || defaultTelemetry);
-        if (data.taskQueue) setTaskQueue(data.taskQueue);
-        if (data.recentActions) setRecentActions(data.recentActions);
-        if (data.companion) {
-          setCompanion((prev) => ({ ...prev, ...data.companion }));
-        }
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const notifyUser = useCallback((input: Omit<ToastNotice, 'id' | 'occurrences'>) => {
+    if (!preferencesRef.current.notificationsEnabled && input.severity === 'info') return;
+    const toastId = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+    setToasts((prev) => {
+      const existing = prev.find((t) => t.dedupeKey === input.dedupeKey);
+      if (existing) {
+        return prev.map((t) =>
+          t.dedupeKey === input.dedupeKey
+            ? { ...t, message: input.message, occurrences: t.occurrences + 1 }
+            : t
+        );
       }
-    } catch {
-      // offline/transient
+      return [{ ...input, id: toastId, occurrences: 1 }, ...prev].slice(0, 4);
+    });
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== toastId));
+    }, 5500);
+  }, []);
+
+  const refreshNotifications = useCallback(async () => {
+    const res = await apiClient.get<{ notifications: NotificationItem[] }>('/api/v1/notifications');
+    if (res.ok && Array.isArray(res.data?.notifications)) {
+      setNotifications(res.data.notifications);
     }
   }, []);
 
-  // Initial Data Load
-  const fetchInitialData = useCallback(async () => {
-    try {
-      const [memRes, aliasRes, themeRes, profRes] = await Promise.all([
-        fetch('/api/memory/items'),
-        fetch('/api/settings/aliases'),
-        fetch('/api/settings/theme'),
-        fetch('/api/providers/profiles'),
-      ]);
-
-      if (memRes.ok) {
-        const data = await memRes.json();
-        setMemories(data.memories || []);
-      }
-      if (aliasRes.ok) {
-        const data = await aliasRes.json();
-        setAliases(data.aliases || []);
-      }
-      if (themeRes.ok) {
-        const data = await themeRes.json();
-        if (data.theme) setThemeState(data.theme);
-      }
-      if (profRes.ok) {
-        const data = await profRes.json();
-        setProviderProfiles(data.profiles || []);
-      }
-    } catch {
-      // offline
+  const refreshSelfHealth = useCallback(async () => {
+    const res = await apiClient.get<{ subsystems: SubsystemHealthItem[] }>('/api/v1/health/self-check');
+    if (res.ok && Array.isArray(res.data?.subsystems)) {
+      setSelfHealth(res.data.subsystems);
     }
+  }, []);
+
+  const refreshTelemetry = useCallback(async () => {
+    const res = await apiClient.get<any>('/api/v1/system/telemetry');
+    if (!res.ok || !res.data) {
+      setBackendOnline(false);
+      return;
+    }
+    const data = res.data;
+    setBackendOnline(true);
+    if (data.telemetry) setTelemetry(data.telemetry);
+    if (data.agentState) setAgentState(data.agentState);
+    if (Array.isArray(data.taskQueue)) setTaskQueue(data.taskQueue);
+    if (Array.isArray(data.historyTasks)) setHistoryTasks(data.historyTasks);
+    if (Array.isArray(data.recentActions)) setRecentActions(data.recentActions);
+    if (data.mobileBridge) setMobileBridge(data.mobileBridge);
+  }, []);
+
+  const refreshModels = useCallback(async () => {
+    const res = await apiClient.get<any>('/api/v1/models');
+    if (res.ok && res.data) {
+      if (Array.isArray(res.data.models)) setModelRegistry(res.data.models);
+      if (res.data.summary) setModelSummary(res.data.summary);
+    }
+  }, []);
+
+  const refreshDiagnostics = useCallback(async () => {
+    const res = await apiClient.get<{ diagnostics: ProviderDiagnosticAttempt[] }>('/api/v1/providers/diagnostics');
+    if (res.ok && Array.isArray(res.data?.diagnostics)) {
+      setProviderDiagnostics(res.data.diagnostics);
+    }
+  }, []);
+
+  const refreshCapabilities = useCallback(async () => {
+    const res = await apiClient.get<{ capabilities: CapabilityRecord[] }>('/api/v1/capabilities');
+    if (res.ok && Array.isArray(res.data?.capabilities)) {
+      setCapabilities(res.data.capabilities);
+    }
+  }, []);
+
+  const refreshPersona = useCallback(async () => {
+    const res = await apiClient.get<{ persona: PersonaConfig; operatingMode?: OperatingMode }>('/api/v1/persona');
+    if (res.ok && res.data?.persona) {
+      setPersona(res.data.persona);
+      const operatingMode = res.data.operatingMode;
+      if (operatingMode) {
+        setPreferences((prev) => ({ ...prev, operatingMode }));
+      }
+    }
+  }, []);
+
+  const refreshBehaviorProfiles = useCallback(async () => {
+    const res = await apiClient.get<{ profiles: BehaviorProfile[] }>('/api/v1/behavior-profiles');
+    if (res.ok && Array.isArray(res.data?.profiles)) {
+      setBehaviorProfiles(res.data.profiles);
+    }
+  }, []);
+
+  const refreshCustomers = useCallback(async (query?: string, includeArchived = false) => {
+    const params = new URLSearchParams();
+    if (query && query.trim()) params.set('q', query.trim());
+    if (includeArchived) params.set('includeArchived', 'true');
+    const qs = params.toString();
+    const res = await apiClient.get<{ customers: CustomerRecordView[] }>(`/api/v1/customers${qs ? `?${qs}` : ''}`);
+    if (res.ok && Array.isArray(res.data?.customers)) {
+      setCustomers(res.data.customers);
+    }
+  }, []);
+
+  const fetchInitialData = useCallback(async () => {
+    const [
+      memRes,
+      instRes,
+      aliasRes,
+      themeRes,
+      profRes,
+      modelsRes,
+      tasksRes,
+      skillsRes,
+      browserRes,
+      eventsRes,
+      workersRes,
+      notifRes,
+      healthRes,
+      capRes,
+      personaRes,
+      bpRes,
+      custRes,
+    ] = await Promise.all([
+      apiClient.get('/api/v1/memory'),
+      apiClient.get('/api/v1/instructions'),
+      apiClient.get('/api/settings/aliases'),
+      apiClient.get('/api/settings/theme'),
+      apiClient.get('/api/v1/providers'),
+      apiClient.get('/api/v1/models'),
+      apiClient.get('/api/v1/tasks'),
+      apiClient.get('/api/v1/skills'),
+      apiClient.get('/api/v1/browser/sessions'),
+      apiClient.get('/api/v1/events?history=true'),
+      apiClient.get('/api/v1/workers'),
+      apiClient.get('/api/v1/notifications'),
+      apiClient.get('/api/v1/health/self-check'),
+      apiClient.get('/api/v1/capabilities'),
+      apiClient.get('/api/v1/persona'),
+      apiClient.get('/api/v1/behavior-profiles'),
+      apiClient.get('/api/v1/customers'),
+    ]);
+
+    if (memRes.ok && memRes.data) setMemories(memRes.data.memories || []);
+    if (instRes.ok && instRes.data) {
+      setInstructions(instRes.data.instructions || []);
+      if (instRes.data.preferences) {
+        setPreferences({ ...DEFAULT_PREFERENCES, ...instRes.data.preferences });
+        if (instRes.data.preferences.sidebarState) {
+          setSidebarStateLocal(instRes.data.preferences.sidebarState);
+        }
+      }
+    }
+    if (aliasRes.ok && aliasRes.data) setAliases(aliasRes.data.aliases || []);
+    if (themeRes.ok && themeRes.data?.theme) setThemeState(themeRes.data.theme);
+    if (profRes.ok && profRes.data) {
+      setProviderProfiles(profRes.data.profiles || []);
+      if (profRes.data.modelSummary) setModelSummary(profRes.data.modelSummary);
+      if (Array.isArray(profRes.data.diagnostics)) setProviderDiagnostics(profRes.data.diagnostics);
+    }
+    if (modelsRes.ok && modelsRes.data) {
+      if (Array.isArray(modelsRes.data.models)) setModelRegistry(modelsRes.data.models);
+      if (modelsRes.data.summary) setModelSummary(modelsRes.data.summary);
+    }
+    if (tasksRes.ok && tasksRes.data) {
+      if (Array.isArray(tasksRes.data.activeTasks)) setTaskQueue(tasksRes.data.activeTasks);
+      if (Array.isArray(tasksRes.data.historyTasks)) setHistoryTasks(tasksRes.data.historyTasks);
+      if (Array.isArray(tasksRes.data.recentActions)) setRecentActions(tasksRes.data.recentActions);
+      if (Array.isArray(tasksRes.data.chatMessages)) setChatMessages(tasksRes.data.chatMessages);
+    }
+    if (skillsRes.ok && skillsRes.data) setSkills(skillsRes.data.skills || []);
+    if (browserRes.ok && browserRes.data?.session) setBrowserSession(browserRes.data.session);
+    if (eventsRes.ok && eventsRes.data) {
+      if (Array.isArray(eventsRes.data.events)) setEvents(eventsRes.data.events);
+      if (Array.isArray(eventsRes.data.auditLogs)) setAuditLogs(eventsRes.data.auditLogs);
+    }
+    if (workersRes.ok && workersRes.data) {
+      if (Array.isArray(workersRes.data.workers)) setWorkers(workersRes.data.workers);
+      if (Array.isArray(workersRes.data.tools)) setTools(workersRes.data.tools);
+    }
+    if (notifRes.ok && notifRes.data) setNotifications(notifRes.data.notifications || []);
+    if (healthRes.ok && healthRes.data?.subsystems) setSelfHealth(healthRes.data.subsystems);
+    if (capRes.ok && Array.isArray(capRes.data?.capabilities)) setCapabilities(capRes.data.capabilities);
+    if (personaRes.ok && personaRes.data?.persona) setPersona(personaRes.data.persona);
+    if (bpRes.ok && Array.isArray(bpRes.data?.profiles)) setBehaviorProfiles(bpRes.data.profiles);
+    if (custRes.ok && Array.isArray(custRes.data?.customers)) setCustomers(custRes.data.customers);
   }, []);
 
   useEffect(() => {
     fetchInitialData();
-    fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 2500);
-    return () => clearInterval(interval);
-  }, [fetchInitialData, fetchTelemetry]);
+    refreshTelemetry();
+    const interval = setInterval(refreshTelemetry, 3000);
 
-  // Speech Synthesis setup
+    let es: EventSource | null = null;
+    if (typeof EventSource !== 'undefined') {
+      es = new EventSource('/api/v1/events');
+      es.addEventListener('nx', (evt: MessageEvent) => {
+        try {
+          const parsed = JSON.parse(evt.data) as EventBusEvent;
+          setEvents((prev) => [parsed, ...prev.filter((e) => e.id !== parsed.id)].slice(0, 80));
+          if (parsed.type === 'TASK_STATE_CHANGED' && parsed.payload?.state) {
+            setAgentState(parsed.payload.state as AgentState);
+          }
+          if (parsed.type === 'MODE_CHANGED' || parsed.type === 'PERSONA_UPDATED') {
+            refreshPersona();
+            refreshBehaviorProfiles();
+            refreshCapabilities();
+          }
+          if (
+            parsed.type === 'CUSTOMER_CREATED' ||
+            parsed.type === 'CUSTOMER_UPDATED' ||
+            parsed.type === 'CUSTOMER_DELETED'
+          ) {
+            refreshCustomers();
+          }
+          if (parsed.type === 'KEY_VALIDATION_FINISHED' || parsed.type === 'POLICY_BLOCKED') {
+            refreshNotifications();
+          }
+        } catch {
+          // Ignore malformed event chunk
+        }
+      });
+    }
+
+    return () => {
+      clearInterval(interval);
+      es?.close();
+    };
+  }, [
+    fetchInitialData,
+    refreshTelemetry,
+    refreshNotifications,
+    refreshPersona,
+    refreshBehaviorProfiles,
+    refreshCapabilities,
+    refreshCustomers,
+  ]);
+
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      synthRef.current = window.speechSynthesis;
-    }
-  }, []);
-
-  // Web Audio UI Chimes (Zero external audio file dependencies)
-  const playChime = useCallback((type: 'wake' | 'success' | 'alert') => {
-    try {
-      if (typeof window === 'undefined') return;
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      const now = ctx.currentTime;
-      if (type === 'wake') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(520, now);
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-        osc.start(now);
-        osc.stop(now + 0.22);
-      } else if (type === 'success') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.setValueAtTime(660, now + 0.08);
-        osc.frequency.setValueAtTime(880, now + 0.16);
-        gain.gain.setValueAtTime(0.07, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-        osc.start(now);
-        osc.stop(now + 0.28);
-      } else {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(320, now);
-        osc.frequency.linearRampToValueAtTime(220, now + 0.15);
-        gain.gain.setValueAtTime(0.06, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-        osc.start(now);
-        osc.stop(now + 0.2);
-      }
-    } catch {
-      // audio context blocked or silent
-    }
-  }, []);
-
-  // Barge-in Interruption (<150ms instant response)
-  const bargeInInterrupt = useCallback(() => {
-    if (synthRef.current) {
-      synthRef.current.cancel();
-    }
-    setIsSpeaking(false);
-    setLipSyncFrame(0);
-  }, []);
-
-  // High-fidelity natural speech with Urdu/Roman Urdu phonetics
-  const speakNatural = useCallback(
-    (text: string) => {
-      if (!synthRef.current) return;
-      bargeInInterrupt();
-
-      // Clean text of technical tokens or bracketed info
-      const spokenText = text
-        .replace(/\[.*?\]/g, '')
-        .replace(/`.*?`/g, '')
-        .trim();
-
-      const utterance = new SpeechSynthesisUtterance(spokenText);
-      const voices = synthRef.current.getVoices();
-
-      // Find appropriate voice:
-      // For Urdu or Roman Urdu, find Urdu (ur-PK, ur) or Hindi (hi-IN) voice for native South Asian phonetic pronunciation
-      const isUrduScript = /[\u0600-\u06FF]/.test(text);
-      const isRomanUrdu = /hai|hain|karo|karein|meri|mera|aap|main|ho|gaya|gayi|theek|achha|ji|chup|wapas|chhoti|badi/i.test(text);
-
-      let selectedVoice = null;
-      if (isUrduScript || isRomanUrdu) {
-        selectedVoice =
-          voices.find((v) => v.lang.startsWith('ur')) ||
-          voices.find((v) => v.lang.startsWith('hi')) ||
-          voices.find((v) => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('google'));
-        utterance.rate = 1.05;
-        utterance.pitch = 1.1; // warm, natural female anime assistant pitch
-      } else {
-        selectedVoice =
-          voices.find((v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Female'))) ||
-          voices.find((v) => v.lang.startsWith('en'));
-        utterance.rate = 1.0;
-        utterance.pitch = 1.05;
-      }
-
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        setCompanion((prev) => ({
-          ...prev,
-          mood: 'speaking',
-          lastSpokenPhrase: spokenText,
-        }));
-      };
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        setCompanion((prev) => ({ ...prev, mood: 'friendly' }));
-      };
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-        setCompanion((prev) => ({ ...prev, mood: 'friendly' }));
-      };
-
-      synthRef.current.speak(utterance);
-    },
-    [bargeInInterrupt]
-  );
-
-  // Send Command to Agent
-  const sendCommand = useCallback(
-    async (prompt: string) => {
-      bargeInInterrupt();
-      setAgentState('THINKING');
-      setCompanion((prev) => ({
-        ...prev,
-        mood: 'thinking',
-        currentThought: `Thinking: "${prompt}"`,
-      }));
-
-      // Optimistic message append
-      const userMessage: ChatMessage = {
-        id: `msg-${Date.now()}-u`,
-        sender: 'user',
-        text: prompt,
-        time: Date.now(),
-      };
-      setChatMessages((prev) => [...prev, userMessage]);
-
-      // Client-side quick voice companion commands
-      const lower = prompt.toLowerCase();
-      if (lower.includes('side mein chup') || lower.includes('chup ja') || lower.includes('side ho ja')) {
-        setCompanion((prev) => ({
-          ...prev,
-          dockPosition: 'side_right',
-          scale: 'small',
-          mood: 'friendly',
-          lastSpokenPhrase: 'Theek hai, main screen ki side par compact mode mein hoon. Jab zaroorat ho awaaz de dein.',
-        }));
-      } else if (lower.includes('wapas aa ja') || lower.includes('samne aa')) {
-        setCompanion((prev) => ({
-          ...prev,
-          dockPosition: 'dock_bottom_right',
-          scale: 'medium',
-          mood: 'friendly',
-          lastSpokenPhrase: 'Main wapas aa gayi hoon. Batayein agla task kya hai?',
-        }));
-      } else if (lower.includes('chhoti ho ja')) {
-        setCompanion((prev) => ({ ...prev, scale: 'small' }));
-      } else if (lower.includes('badi ho ja')) {
-        setCompanion((prev) => ({ ...prev, scale: 'large' }));
-      }
-
-      try {
-        const res = await fetch('/api/agent/command', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, mode: interactionMode }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setAgentState(data.agentState || 'IDLE');
-          if (data.companion) {
-            setCompanion((prev) => ({ ...prev, ...data.companion }));
-          }
-
-          if (data.task) {
-            setTaskQueue((prev) => [data.task, ...prev.filter((t) => t.id !== data.task.id)]);
-            setHistoryTasks((prev) => [data.task, ...prev]);
-            playChime('success');
-          }
-
-          if (data.actions) {
-            setRecentActions((prev) => [...data.actions, ...prev].slice(0, 25));
-          }
-
-          const replyText = data.responseUrdu || data.responseEnglish || 'Ji, task complete ho gaya hai.';
-          const agentMessage: ChatMessage = {
-            id: `msg-${Date.now()}-a`,
-            sender: 'agent',
-            text: replyText,
-            time: Date.now(),
-            languageDetected: 'roman_urdu',
-          };
-          setChatMessages((prev) => [...prev, agentMessage]);
-
-          // Speak output naturally
-          speakNatural(replyText);
-          fetchTelemetry();
-          return data;
-        }
-      } catch (err: any) {
-        const errorReply = 'Command execute karne mein masla aya hai. Local desktop fallback active hai.';
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            id: `msg-${Date.now()}-err`,
-            sender: 'agent',
-            text: errorReply,
-            time: Date.now(),
-          },
-        ]);
-        speakNatural(errorReply);
-        setAgentState('IDLE');
-      }
-    },
-    [bargeInInterrupt, interactionMode, speakNatural, fetchTelemetry]
-  );
-
-  // Web Speech Recognition with live interim streaming & real-time mic volume sensing
-  const startVoiceListening = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert('Speech Recognition is not supported in this browser. Please use Google Chrome or Edge.');
-      return;
-    }
-
-    bargeInInterrupt();
-    setLiveTranscript('');
-    playChime('wake');
-
-    // Start real microphone volume sensing if available
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices
-          .getUserMedia({ audio: true })
-          .then((stream) => {
-            micStreamRef.current = stream;
-            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioCtx) {
-              const ctx = new AudioCtx();
-              audioCtxRef.current = ctx;
-              const src = ctx.createMediaStreamSource(stream);
-              const analyser = ctx.createAnalyser();
-              analyser.fftSize = 64;
-              src.connect(analyser);
-              const buffer = new Uint8Array(analyser.frequencyBinCount);
-
-              const checkVol = () => {
-                if (!analyser || !audioCtxRef.current) return;
-                analyser.getByteFrequencyData(buffer);
-                let sum = 0;
-                for (let i = 0; i < buffer.length; i++) sum += buffer[i];
-                const avg = sum / buffer.length;
-                setMicVolume(Math.min(100, Math.round(avg * 1.8)));
-                animFrameRef.current = requestAnimationFrame(checkVol);
-              };
-              checkVol();
-            }
-          })
-          .catch(() => {
-            // mic blocked or silent fallback
-          });
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'ur-PK'; // Multilingual Urdu / English recognition
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setAgentState('LISTENING');
-        setCompanion((prev) => ({
-          ...prev,
-          mood: 'listening',
-          currentThought: 'Sun rahi hoon... boliye...',
-        }));
-      };
-
-      recognition.onresult = (event: any) => {
-        let interimText = '';
-        let finalText = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalText += event.results[i][0].transcript;
-          } else {
-            interimText += event.results[i][0].transcript;
-          }
-        }
-
-        const currentSpeech = finalText || interimText;
-        setLiveTranscript(currentSpeech);
-
-        if (finalText && finalText.trim()) {
-          setIsListening(false);
-          setLiveTranscript('');
-          sendCommand(finalText.trim());
-        }
-      };
-
-      recognition.onerror = () => {
-        setIsListening(false);
-        setAgentState('IDLE');
+    const session = new AudioSession({
+      onStateChange: (next) => setVoiceState(next),
+      onInterimTranscript: (text) => setLiveTranscript(text),
+      onFinalTranscript: (finalText) => {
         setLiveTranscript('');
-        setCompanion((prev) => ({ ...prev, mood: 'friendly', currentThought: 'Listening stopped.' }));
-      };
+        sendCommandRef.current(finalText);
+      },
+      onMicLevel: (level) => setMicVolume(level),
+      onError: (_code, message) => {
+        setVoiceNotice(message);
+        notifyUser({
+          title: 'Voice Engine Notice',
+          message,
+          source: 'audio-session',
+          severity: 'warning',
+          dedupeKey: `voice-notice-${_code}`,
+        });
+      },
+      onDevicesUpdated: (devices, voices) => {
+        setAudioDevices(devices);
+        setTtsVoices(voices);
+      },
+      onPermissionChange: (status) => setMicPermission(status),
+    });
+    audioSessionRef.current = session;
+    return () => {
+      session.destroy();
+      audioSessionRef.current = null;
+    };
+  }, [notifyUser]);
 
-      recognition.onend = () => {
-        setIsListening(false);
-      };
+  const bargeInInterrupt = useCallback(() => {
+    audioSessionRef.current?.interruptSpeech();
+  }, []);
 
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch {
-      setIsListening(false);
-    }
-  }, [bargeInInterrupt, playChime, sendCommand]);
+  const speakNatural = useCallback((text: string) => {
+    if (!preferencesRef.current.voiceEnabled) return;
+    audioSessionRef.current?.speak(text, {
+      rate: preferencesRef.current.voiceRate,
+      volume: preferencesRef.current.voiceVolume,
+      lang: preferencesRef.current.voiceLang,
+      voiceName: preferencesRef.current.selectedVoiceName,
+    });
+  }, []);
 
-  const stopVoiceListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-    }
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {});
-      audioCtxRef.current = null;
-    }
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    setMicVolume(0);
-    setIsListening(false);
-    setLiveTranscript('');
+  const cancelActiveCommand = useCallback(() => {
+    activeCommandAbortRef.current?.abort();
+    activeCommandAbortRef.current = null;
+    setIsSendingCommand(false);
     setAgentState('IDLE');
   }, []);
 
-  // Companion direct control
-  const controlCompanion = useCallback(
-    async (opts: {
-      dockPosition?: any;
-      scale?: any;
-      isFloating?: boolean;
-      characterPose?: 'full' | 'bust';
-      command?: string;
-    }) => {
-      // Optimistic update
-      setCompanion((prev) => ({
-        ...prev,
-        dockPosition: opts.dockPosition ?? prev.dockPosition,
-        scale: opts.scale ?? prev.scale,
-        isFloating: opts.isFloating ?? prev.isFloating,
-        characterPose: opts.characterPose ?? prev.characterPose,
-      }));
+  const sendCommand = useCallback(
+    async (prompt: string) => {
+      const trimmed = prompt.trim();
+      if (!trimmed) return null;
 
-      try {
-        const res = await fetch('/api/companion/control', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(opts),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.companion) {
-            setCompanion((prev) => ({ ...prev, ...data.companion }));
-          }
-          return data;
-        }
-      } catch {
-        // local optimistic state retained
+      bargeInInterrupt();
+      activeCommandAbortRef.current?.abort();
+      const abortController = new AbortController();
+      activeCommandAbortRef.current = abortController;
+
+      const seq = ++commandSequenceRef.current;
+      const requestId = apiClient.generateCorrelationId('cmd');
+      setIsSendingCommand(true);
+      setAgentState('RECEIVED');
+
+      const optimisticUserId = `msg-${Date.now()}-u-${seq}`;
+      const userMsg: ChatMessage = {
+        id: optimisticUserId,
+        conversationId: conversationIdRef.current,
+        sequence: seq,
+        requestId,
+        sender: 'user',
+        text: trimmed,
+        time: Date.now(),
+        status: 'sending',
+      };
+      setChatMessages((prev) => [...prev, userMsg]);
+
+      const res = await apiClient.post<any>(
+        '/api/agent/command',
+        {
+          prompt: trimmed,
+          mode: interactionMode,
+          conversationId: conversationIdRef.current,
+          sequence: seq,
+          requestId,
+          correlationId: requestId,
+        },
+        { timeoutMs: 45_000, signal: abortController.signal, correlationId: requestId }
+      );
+
+      if (abortController.signal.aborted || seq !== commandSequenceRef.current) {
+        setChatMessages((prev) =>
+          prev.map((m) => (m.id === optimisticUserId ? { ...m, status: 'cancelled' } : m))
+        );
+        return null;
       }
+
+      setIsSendingCommand(false);
+      activeCommandAbortRef.current = null;
+
+      if (!res.ok && !res.data) {
+        setAgentState('FAILED');
+        setChatMessages((prev) => [
+          ...prev.map((m) => (m.id === optimisticUserId ? { ...m, status: 'failed' as const } : m)),
+          {
+            id: `msg-${Date.now()}-err`,
+            conversationId: conversationIdRef.current,
+            sequence: seq,
+            requestId,
+            sender: 'agent',
+            text: res.error?.message || 'Backend connection lost while dispatching command.',
+            time: Date.now(),
+            status: 'failed',
+            outcome: 'FAILED',
+          },
+        ]);
+        notifyUser({
+          title: 'Command Dispatch Failed',
+          message: res.error?.message || 'Unable to reach NX backend.',
+          source: 'orchestrator',
+          severity: 'error',
+          dedupeKey: 'cmd-dispatch-error',
+        });
+        setTimeout(() => setAgentState('IDLE'), 1200);
+        return null;
+      }
+
+      const data = res.data;
+      setAgentState(data.agentState || 'IDLE');
+      if (data.operatingMode) {
+        setPreferences((prev) => ({ ...prev, operatingMode: data.operatingMode }));
+      }
+
+      if (data.task) {
+        setTaskQueue((prev) => [data.task, ...prev.filter((t) => t.id !== data.task.id)].slice(0, 15));
+        setHistoryTasks((prev) => [data.task, ...prev.filter((t) => t.id !== data.task.id)].slice(0, 40));
+      }
+      if (Array.isArray(data.actions)) {
+        setRecentActions((prev) => [...data.actions, ...prev].slice(0, 30));
+      }
+      if (data.memory) {
+        setMemories((prev) => [data.memory, ...prev.filter((m) => m.id !== data.memory.id)]);
+      }
+
+      const replyText = data.replyText || data.responseEnglish || data.responseUrdu || 'Command processed.';
+      const agentMsg: ChatMessage = {
+        id: `msg-${Date.now()}-a-${seq}`,
+        conversationId: conversationIdRef.current,
+        sequence: seq,
+        requestId,
+        correlationId: data.correlationId || requestId,
+        sender: 'agent',
+        text: replyText,
+        time: Date.now(),
+        taskId: data.task?.taskId,
+        status: 'completed',
+        outcome: data.outcome || (data.ok ? 'DONE' : 'FAILED'),
+      };
+
+      setChatMessages((prev) => [
+        ...prev.map((m) => (m.id === optimisticUserId ? { ...m, status: 'completed' as const } : m)),
+        agentMsg,
+      ]);
+
+      if (interactionMode === 'voice' && preferencesRef.current.voiceEnabled) {
+        speakNatural(replyText);
+      }
+
+      refreshTelemetry();
+      refreshNotifications();
+      refreshCapabilities();
+      refreshCustomers();
+      refreshPersona();
+      apiClient.get('/api/v1/events?history=true').then((hist) => {
+        if (hist.ok && Array.isArray(hist.data?.auditLogs)) setAuditLogs(hist.data.auditLogs);
+      });
+      return data;
+    },
+    [
+      bargeInInterrupt,
+      interactionMode,
+      speakNatural,
+      refreshTelemetry,
+      refreshNotifications,
+      refreshCapabilities,
+      refreshCustomers,
+      refreshPersona,
+      notifyUser,
+    ]
+  );
+
+  useEffect(() => {
+    sendCommandRef.current = sendCommand;
+  }, [sendCommand]);
+
+  const cancelTask = useCallback(
+    async (taskId: string) => {
+      const res = await apiClient.post(`/api/v1/tasks/${encodeURIComponent(taskId)}/cancel`);
+      if (res.ok) await refreshTelemetry();
+    },
+    [refreshTelemetry]
+  );
+
+  const confirmTask = useCallback(
+    async (taskId: string, approved: boolean) => {
+      const res = await apiClient.post(`/api/v1/tasks/${encodeURIComponent(taskId)}/confirm`, { approved });
+      if (res.ok) await refreshTelemetry();
+    },
+    [refreshTelemetry]
+  );
+
+  const startVoiceListening = useCallback(() => {
+    setVoiceNotice(null);
+    audioSessionRef.current?.startListening({
+      lang: preferencesRef.current.voiceLang,
+      deviceId: preferencesRef.current.selectedMicDeviceId,
+    });
+  }, []);
+
+  const stopVoiceListening = useCallback(() => {
+    audioSessionRef.current?.stopListening('IDLE');
+  }, []);
+
+  const refreshAudioDevices = useCallback(async () => {
+    await audioSessionRef.current?.refreshDevicesAndVoices();
+    await audioSessionRef.current?.probePermission();
+  }, []);
+
+  const addMemoryItem = useCallback(
+    async (content: string, layer: MemoryLayer = 'PREFERENCE') => {
+      const res = await apiClient.post('/api/v1/memory', { content, layer });
+      if (res.ok && res.data?.memory) {
+        setMemories((prev) => [res.data.memory, ...prev.filter((m) => m.id !== res.data.memory.id)]);
+        return { ok: true };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to add memory' };
     },
     []
   );
 
-  // Smart Memory API
-  const deleteMemory = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/memory/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setMemories((prev) => prev.filter((m) => m.id !== id));
+  const updateMemoryItem = useCallback(
+    async (id: string, updates: { content?: string; layer?: MemoryLayer }) => {
+      const res = await apiClient.patch(`/api/v1/memory/${encodeURIComponent(id)}`, updates);
+      if (res.ok && res.data?.memory) {
+        setMemories((prev) => prev.map((m) => (m.id === id ? res.data.memory : m)));
+        return { ok: true };
       }
-    } catch {
-      // offline
+      return { ok: false, error: res.error?.message || 'Failed to update memory' };
+    },
+    []
+  );
+
+  const deleteMemory = useCallback(async (id: string) => {
+    const res = await apiClient.delete(`/api/v1/memory/${encodeURIComponent(id)}`);
+    if (res.ok) setMemories((prev) => prev.filter((m) => m.id !== id));
+  }, []);
+
+  const addInstruction = useCallback(
+    async (input: {
+      title: string;
+      content: string;
+      source?: InstructionSource;
+      scope?: InstructionItem['scope'];
+    }) => {
+      const res = await apiClient.post('/api/v1/instructions', input);
+      if (res.ok && Array.isArray(res.data?.instructions)) {
+        setInstructions(res.data.instructions);
+        return { ok: true };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to add instruction' };
+    },
+    []
+  );
+
+  const updateInstruction = useCallback(
+    async (
+      id: string,
+      updates: Partial<Pick<InstructionItem, 'title' | 'content' | 'enabled' | 'scope'>>
+    ) => {
+      const res = await apiClient.patch(`/api/v1/instructions/${encodeURIComponent(id)}`, updates);
+      if (res.ok && Array.isArray(res.data?.instructions)) {
+        setInstructions(res.data.instructions);
+        return { ok: true };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to update instruction' };
+    },
+    []
+  );
+
+  const deleteInstruction = useCallback(async (id: string) => {
+    const res = await apiClient.delete(`/api/v1/instructions/${encodeURIComponent(id)}`);
+    if (res.ok && Array.isArray(res.data?.instructions)) {
+      setInstructions(res.data.instructions);
+      return { ok: true };
+    }
+    return { ok: false, error: res.error?.message || 'Failed to delete instruction' };
+  }, []);
+
+  const updatePreferences = useCallback(
+    async (updates: Partial<UserPreferencesConfig>) => {
+      setPreferences((prev) => ({ ...prev, ...updates }));
+      const res = await apiClient.patch('/api/v1/preferences', updates);
+      if (res.ok && res.data?.preferences) {
+        setPreferences({ ...DEFAULT_PREFERENCES, ...res.data.preferences });
+        if (res.data.preferences.sidebarState) {
+          setSidebarStateLocal(res.data.preferences.sidebarState);
+        }
+        await Promise.all([refreshPersona(), refreshCapabilities(), refreshCustomers()]);
+      }
+    },
+    [refreshPersona, refreshCapabilities, refreshCustomers]
+  );
+
+  const operatingMode: OperatingMode = preferences.operatingMode || 'OWNER_PRIVATE';
+
+  const toggleOperatingMode = useCallback(
+    async (targetMode?: OperatingMode) => {
+      const next: OperatingMode =
+        targetMode || (operatingMode === 'OWNER_PRIVATE' ? 'CUSTOMER_SAFE' : 'OWNER_PRIVATE');
+      await updatePreferences({ operatingMode: next });
+      notifyUser({
+        title: next === 'CUSTOMER_SAFE' ? 'Customer Safe Mode Active' : 'Owner Private Mode Active',
+        message:
+          next === 'CUSTOMER_SAFE'
+            ? 'Private memories suppressed, formal counter-safe tone enforced, and unmasked customer reveal locked.'
+            : 'Full owner persona, wake profiles, and single-record owner reveal enabled.',
+        source: 'operating-mode',
+        severity: next === 'CUSTOMER_SAFE' ? 'warning' : 'success',
+        dedupeKey: 'operating-mode-switch',
+      });
+    },
+    [operatingMode, updatePreferences, notifyUser]
+  );
+
+  const updatePersona = useCallback(
+    async (updates: Partial<PersonaConfig>) => {
+      const res = await apiClient.patch('/api/v1/persona', updates);
+      if (res.ok && res.data?.persona) {
+        setPersona(res.data.persona);
+        return { ok: true };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to update persona' };
+    },
+    []
+  );
+
+  const createBehaviorProfile = useCallback(
+    async (profile: Partial<BehaviorProfile> & { displayName: string }) => {
+      const res = await apiClient.post('/api/v1/behavior-profiles', profile);
+      if (res.ok && Array.isArray(res.data?.profiles)) {
+        setBehaviorProfiles(res.data.profiles);
+        return { ok: true };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to create behavior profile' };
+    },
+    []
+  );
+
+  const updateBehaviorProfile = useCallback(async (id: string, updates: Partial<BehaviorProfile>) => {
+    const res = await apiClient.patch(`/api/v1/behavior-profiles/${encodeURIComponent(id)}`, updates);
+    if (res.ok && Array.isArray(res.data?.profiles)) {
+      setBehaviorProfiles(res.data.profiles);
+      return { ok: true };
+    }
+    return { ok: false, error: res.error?.message || 'Failed to update behavior profile' };
+  }, []);
+
+  const deleteBehaviorProfile = useCallback(async (id: string) => {
+    const res = await apiClient.delete(`/api/v1/behavior-profiles/${encodeURIComponent(id)}`);
+    if (res.ok && Array.isArray(res.data?.profiles)) {
+      setBehaviorProfiles(res.data.profiles);
+      return { ok: true };
+    }
+    return { ok: false, error: res.error?.message || 'Failed to delete behavior profile' };
+  }, []);
+
+  const createCustomer = useCallback(
+    async (input: {
+      name: string;
+      phone?: string;
+      alternatePhone?: string;
+      cnic?: string;
+      address?: string;
+      deviceModel?: string;
+      imei?: string;
+      repairNotes?: string;
+      paymentStatus?: CustomerRecord['paymentStatus'];
+      accessoriesPurchased?: string;
+      warrantyInfo?: string;
+      staffNotes?: string;
+      tags?: string[];
+    }) => {
+      const res = await apiClient.post('/api/v1/customers', input);
+      if (res.ok && res.data?.customer) {
+        await refreshCustomers();
+        return { ok: true, customer: res.data.customer as CustomerRecordView };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to save customer record' };
+    },
+    [refreshCustomers]
+  );
+
+  const getCustomerDetail = useCallback(async (id: string, reveal = false) => {
+    const res = await apiClient.get<{ customer: CustomerRecordView }>(
+      `/api/v1/customers/${encodeURIComponent(id)}${reveal ? '?reveal=true' : ''}`
+    );
+    if (res.ok && res.data?.customer) {
+      return { ok: true, customer: res.data.customer };
+    }
+    return {
+      ok: false,
+      code: res.error?.code,
+      error: res.error?.message || 'Unable to inspect customer record.',
+    };
+  }, []);
+
+  const updateCustomerRecord = useCallback(
+    async (id: string, updates: Partial<CustomerRecord>) => {
+      const res = await apiClient.patch(`/api/v1/customers/${encodeURIComponent(id)}`, updates);
+      if (res.ok && res.data?.customer) {
+        await refreshCustomers();
+        return { ok: true, customer: res.data.customer as CustomerRecordView };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to update customer' };
+    },
+    [refreshCustomers]
+  );
+
+  const addCustomerServiceEntry = useCallback(
+    async (
+      id: string,
+      input: {
+        deviceModel?: string;
+        issue: string;
+        resolution?: string;
+        amountPKR?: number;
+        paymentStatus?: CustomerRecord['paymentStatus'];
+        warrantyDays?: number;
+      }
+    ) => {
+      const res = await apiClient.post(`/api/v1/customers/${encodeURIComponent(id)}/service`, input);
+      if (res.ok && res.data?.customer) {
+        await refreshCustomers();
+        return { ok: true, customer: res.data.customer as CustomerRecordView };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to add service entry' };
+    },
+    [refreshCustomers]
+  );
+
+  const archiveCustomerRecord = useCallback(
+    async (id: string, archived = true) => {
+      const res = await apiClient.post(`/api/v1/customers/${encodeURIComponent(id)}/archive`, { archived });
+      if (res.ok) {
+        await refreshCustomers(undefined, true);
+        return { ok: true };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to archive customer' };
+    },
+    [refreshCustomers]
+  );
+
+  const deleteCustomerRecord = useCallback(
+    async (id: string) => {
+      const res = await apiClient.delete(`/api/v1/customers/${encodeURIComponent(id)}`);
+      if (res.ok) {
+        await refreshCustomers(undefined, true);
+        return { ok: true };
+      }
+      return { ok: false, error: res.error?.message || 'Failed to delete customer' };
+    },
+    [refreshCustomers]
+  );
+
+  const exportSanitizedCustomers = useCallback(async (includeArchived = false) => {
+    const res = await apiClient.get(`/api/v1/customers/export/sanitized${includeArchived ? '?includeArchived=true' : ''}`);
+    return res.ok ? res.data : { ok: false, error: res.error?.message };
+  }, []);
+
+  const exportCustomerBackup = useCallback(async () => {
+    const res = await apiClient.post('/api/v1/customers/backup');
+    if (res.ok && res.data?.backup) {
+      return { ok: true, backup: res.data.backup };
+    }
+    return { ok: false, error: res.error?.message || 'Encrypted backup unavailable.' };
+  }, []);
+
+  const restoreCustomerBackup = useCallback(
+    async (backup: any) => {
+      const res = await apiClient.post('/api/v1/customers/restore', { backup });
+      if (res.ok) {
+        await refreshCustomers(undefined, true);
+        return { ok: true, restoredCount: res.data?.restoredCount || 0 };
+      }
+      return { ok: false, error: res.error?.message || 'Backup restore failed.' };
+    },
+    [refreshCustomers]
+  );
+
+  const listSafeFiles = useCallback(async (directory: string) => {
+    const res = await apiClient.post('/api/v1/storage/list', { directory });
+    return res.ok ? res.data : { ok: false, error: res.error };
+  }, []);
+
+  const createSafeFolder = useCallback(async (folderPath: string) => {
+    const res = await apiClient.post('/api/v1/files/mkdir', { path: folderPath });
+    return res.ok ? res.data : { ok: false, error: res.error };
+  }, []);
+
+  const createSafeFile = useCallback(async (filePath: string, content = '') => {
+    const res = await apiClient.post('/api/v1/files/create', { path: filePath, content });
+    return res.ok ? res.data : { ok: false, error: res.error };
+  }, []);
+
+  const scanMediaFiles = useCallback(async (dirs?: string[]) => {
+    const res = await apiClient.post('/api/v1/media/scan', { dirs });
+    return res.ok ? res.data : { ok: false, error: res.error };
+  }, []);
+
+  const setSidebarState = useCallback(
+    (next: 'expanded' | 'collapsed' | 'closed') => {
+      setSidebarStateLocal(next);
+      updatePreferences({ sidebarState: next });
+    },
+    [updatePreferences]
+  );
+
+  const markAllNotificationsRead = useCallback(async () => {
+    const res = await apiClient.post('/api/v1/notifications/read-all');
+    if (res.ok && Array.isArray(res.data?.notifications)) {
+      setNotifications(res.data.notifications);
     }
   }, []);
 
-  // Wake Aliases API
-  const addAlias = useCallback(async (alias: string, sensitivity: number = 80) => {
-    try {
-      const res = await fetch('/api/settings/aliases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alias, sensitivity }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAliases(data.aliases);
-      }
-    } catch {
-      // offline
+  const clearNonCriticalNotifications = useCallback(async () => {
+    const res = await apiClient.delete('/api/v1/notifications/clear');
+    if (res.ok && Array.isArray(res.data?.notifications)) {
+      setNotifications(res.data.notifications);
     }
   }, []);
+
+  const addAlias = useCallback(
+    async (
+      alias: string,
+      sensitivity = 80,
+      options?: Partial<Pick<WakeAliasItem, 'behaviorProfileId' | 'language' | 'priority' | 'contextRules'>>
+    ) => {
+      const res = await apiClient.post('/api/settings/aliases', { alias, sensitivity, ...(options || {}) });
+      if (res.ok && res.data) setAliases(res.data.aliases || []);
+    },
+    []
+  );
 
   const updateAlias = useCallback(async (id: string, updates: Partial<WakeAliasItem>) => {
-    try {
-      const res = await fetch(`/api/settings/aliases/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAliases(data.aliases);
-      }
-    } catch {
-      // offline
-    }
+    const res = await apiClient.put(`/api/settings/aliases/${encodeURIComponent(id)}`, updates);
+    if (res.ok && res.data) setAliases(res.data.aliases || []);
   }, []);
 
   const deleteAlias = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/settings/aliases/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        const data = await res.json();
-        setAliases(data.aliases);
-      }
-    } catch {
-      // offline
-    }
+    const res = await apiClient.delete(`/api/settings/aliases/${encodeURIComponent(id)}`);
+    if (res.ok && res.data) setAliases(res.data.aliases || []);
   }, []);
 
-  // Theme API
+  const testWakePhrase = useCallback(async (phrase: string) => {
+    const res = await apiClient.post('/api/settings/aliases/test', { phrase });
+    return res.ok ? res.data : { ok: false, error: res.error };
+  }, []);
+
   const updateTheme = useCallback(async (updates: Partial<CustomThemeConfig>) => {
     setThemeState((prev) => ({ ...prev, ...updates }));
-    try {
-      const res = await fetch('/api/settings/theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+    const res = await apiClient.post('/api/v1/settings/theme', updates);
+    if (res.ok && res.data?.theme) setThemeState(res.data.theme);
+  }, []);
+
+  const addProviderProfile = useCallback(
+    async (profile: {
+      platform: AIPlatformId;
+      apiKey: string;
+      displayName?: string;
+      assignedRole?: ProviderProfile['assignedRole'];
+    }) => {
+      const res = await apiClient.post('/api/v1/providers', profile, { timeoutMs: 60_000 });
+      if (res.data?.profiles) setProviderProfiles(res.data.profiles);
+      if (Array.isArray(res.data?.diagnostics)) setProviderDiagnostics(res.data.diagnostics);
+      await Promise.all([refreshModels(), refreshNotifications(), refreshSelfHealth()]);
+      return res.data || { ok: false, error: res.error };
+    },
+    [refreshModels, refreshNotifications, refreshSelfHealth]
+  );
+
+  const addBulkProviderProfiles = useCallback(
+    async (payload: {
+      platform: AIPlatformId;
+      keysText: string;
+      defaultRole?: ProviderProfile['assignedRole'];
+    }) => {
+      const res = await apiClient.post('/api/v1/providers/bulk', payload, { timeoutMs: 60_000 });
+      if (Array.isArray(res.data?.profiles)) setProviderProfiles(res.data.profiles);
+      if (Array.isArray(res.data?.diagnostics)) setProviderDiagnostics(res.data.diagnostics);
+      await Promise.all([refreshModels(), refreshNotifications(), refreshSelfHealth()]);
+      return res.data || { ok: false, error: res.error };
+    },
+    [refreshModels, refreshNotifications, refreshSelfHealth]
+  );
+
+  const updateProviderProfile = useCallback(async (id: string, updates: Partial<ProviderProfile>) => {
+    const res = await apiClient.patch(`/api/providers/profiles/${encodeURIComponent(id)}`, updates);
+    if (res.ok && res.data?.profiles) setProviderProfiles(res.data.profiles);
+  }, []);
+
+  const testProviderProfile = useCallback(
+    async (id: string) => {
+      const res = await apiClient.post(`/api/v1/providers/${encodeURIComponent(id)}/test`, undefined, {
+        timeoutMs: 60_000,
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.theme) setThemeState(data.theme);
+      if (res.data?.profile) {
+        setProviderProfiles((prev) => prev.map((p) => (p.id === id ? res.data.profile : p)));
       }
-    } catch {
-      // offline
-    }
-  }, []);
+      if (Array.isArray(res.data?.diagnostics)) setProviderDiagnostics(res.data.diagnostics);
+      await Promise.all([refreshModels(), refreshNotifications(), refreshSelfHealth()]);
+      return res.data || { ok: false, error: res.error?.message };
+    },
+    [refreshModels, refreshNotifications, refreshSelfHealth]
+  );
 
-  // Gemini Multi-Project Profile API
-  const addProviderProfile = useCallback(async (profile: any) => {
-    try {
-      const res = await fetch('/api/providers/profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProviderProfiles(data.profiles);
-        return data;
-      }
-    } catch {
-      // offline
-    }
-  }, []);
+  const validateAllProviderProfiles = useCallback(async () => {
+    const res = await apiClient.post('/api/v1/providers/validate-all', undefined, { timeoutMs: 90_000 });
+    if (Array.isArray(res.data?.profiles)) setProviderProfiles(res.data.profiles);
+    if (Array.isArray(res.data?.diagnostics)) setProviderDiagnostics(res.data.diagnostics);
+    await Promise.all([refreshModels(), refreshNotifications(), refreshSelfHealth()]);
+    return res.data || { ok: false, error: res.error };
+  }, [refreshModels, refreshNotifications, refreshSelfHealth]);
 
-  const testProviderProfile = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/providers/profiles/${id}/test`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setProviderProfiles((prev) =>
-          prev.map((p) =>
-            p.id === id
-              ? {
-                  ...p,
-                  healthStatus: data.healthStatus,
-                  latencyMs: data.latencyMs,
-                  requestCount: p.requestCount + 1,
-                }
-              : p
-          )
-        );
-        return data;
-      }
-    } catch {
-      // offline
-    }
-  }, []);
-
-  const deleteProviderProfile = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/providers/profiles/${id}`, { method: 'DELETE' });
+  const deleteProviderProfile = useCallback(
+    async (id: string) => {
+      const res = await apiClient.delete(`/api/providers/profiles/${encodeURIComponent(id)}`);
       if (res.ok) {
         setProviderProfiles((prev) => prev.filter((p) => p.id !== id));
+        await Promise.all([refreshModels(), refreshDiagnostics(), refreshSelfHealth()]);
       }
-    } catch {
-      // offline
+    },
+    [refreshModels, refreshDiagnostics, refreshSelfHealth]
+  );
+
+  const toggleSkill = useCallback(async (skillId: string) => {
+    const res = await apiClient.post(`/api/skills/${encodeURIComponent(skillId)}/toggle`);
+    if (res.ok && res.data?.skill) {
+      setSkills((prev) => prev.map((s) => (s.skillId === skillId ? res.data.skill : s)));
     }
   }, []);
+
+  const testSkill = useCallback(
+    async (skillId: string, query?: string, target?: string) => {
+      const res = await apiClient.post(`/api/v1/skills/${encodeURIComponent(skillId)}/test`, { query, target });
+      if (Array.isArray(res.data?.skills)) setSkills(res.data.skills);
+      if (res.data?.result?.action) {
+        setRecentActions((prev) => [res.data.result.action, ...prev].slice(0, 30));
+      }
+      refreshTelemetry();
+      return res.data || { ok: false, error: res.error };
+    },
+    [refreshTelemetry]
+  );
+
+  const runSkill = useCallback(
+    async (skillId: string, query?: string, target?: string) => {
+      const res = await apiClient.post(`/api/v1/skills/${encodeURIComponent(skillId)}/execute`, { query, target });
+      if (Array.isArray(res.data?.skills)) setSkills(res.data.skills);
+      if (res.data?.result?.action) {
+        setRecentActions((prev) => [res.data.result.action, ...prev].slice(0, 30));
+      }
+      refreshTelemetry();
+      return res.data || { ok: false, error: res.error };
+    },
+    [refreshTelemetry]
+  );
+
+  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
 
   return (
     <AgentContext.Provider
       value={{
         agentState,
-        companion,
+        backendOnline,
         telemetry,
         taskQueue,
         historyTasks,
         recentActions,
+        events,
+        auditLogs,
         memories,
+        instructions,
+        preferences,
+        operatingMode,
+        persona,
+        behaviorProfiles,
+        capabilities,
+        customers,
+        providerDiagnostics,
+        selfHealth,
+        notifications,
+        unreadNotificationsCount,
+        toasts,
         aliases,
         theme,
         providerProfiles,
+        modelRegistry,
+        modelSummary,
+        skills,
+        workers,
+        tools,
+        mobileBridge,
+        browserSession,
         chatMessages,
         activeNav,
+        sidebarState,
+        sidebarDrawerOpen,
+        isSendingCommand,
+        voiceState,
+        micPermission,
+        audioDevices,
+        ttsVoices,
         isListening,
         isSpeaking,
         liveTranscript,
         micVolume,
-        lipSyncFrame,
-        desktopMode,
+        voiceNotice,
         interactionMode,
-        playChime,
         setActiveNav,
-        setDesktopMode,
+        setSidebarState,
+        setSidebarDrawerOpen,
         setInteractionMode,
+        clearVoiceNotice: () => setVoiceNotice(null),
+        dismissToast,
+        notifyUser,
+        markAllNotificationsRead,
+        clearNonCriticalNotifications,
         sendCommand,
-        controlCompanion,
+        cancelActiveCommand,
+        cancelTask,
+        confirmTask,
         startVoiceListening,
         stopVoiceListening,
         bargeInInterrupt,
         speakNatural,
+        refreshAudioDevices,
+        refreshTelemetry,
+        refreshSelfHealth,
+        refreshCapabilities,
+        refreshPersona,
+        refreshBehaviorProfiles,
+        refreshCustomers,
+        toggleOperatingMode,
+        updatePersona,
+        createBehaviorProfile,
+        updateBehaviorProfile,
+        deleteBehaviorProfile,
+        createCustomer,
+        getCustomerDetail,
+        updateCustomerRecord,
+        addCustomerServiceEntry,
+        archiveCustomerRecord,
+        deleteCustomerRecord,
+        exportSanitizedCustomers,
+        exportCustomerBackup,
+        restoreCustomerBackup,
+        listSafeFiles,
+        createSafeFolder,
+        createSafeFile,
+        scanMediaFiles,
+        addMemoryItem,
+        updateMemoryItem,
         deleteMemory,
+        addInstruction,
+        updateInstruction,
+        deleteInstruction,
+        updatePreferences,
         addAlias,
         updateAlias,
         deleteAlias,
+        testWakePhrase,
         updateTheme,
         addProviderProfile,
+        addBulkProviderProfiles,
+        updateProviderProfile,
         testProviderProfile,
+        validateAllProviderProfiles,
         deleteProviderProfile,
+        toggleSkill,
+        testSkill,
+        runSkill,
       }}
     >
       {children}
@@ -768,8 +1421,6 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 export const useAgent = () => {
   const context = useContext(AgentContext);
-  if (!context) {
-    throw new Error('useAgent must be used within an AgentProvider');
-  }
+  if (!context) throw new Error('useAgent must be used within an AgentProvider');
   return context;
 };

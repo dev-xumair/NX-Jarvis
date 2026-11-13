@@ -1,0 +1,895 @@
+NX AI — ZERO-TRUST A-to-Z FULL REBUILD, REPAIR & REAL-FEATURE IMPLEMENTATION MASTER PLAN
+
+MISSION
+
+Treat the current NX AI repository as an UNTRUSTED, PARTIALLY WORKING prototype.
+
+Do not assume that anything claimed by:
+- README
+- previous AI agents
+- previous implementation reports
+- UI labels
+- tests with hardcoded PASS values
+- API responses
+- architecture documents
+- comments
+- status summaries
+
+is actually working.
+
+For this operation, the default state of every claimed feature is:
+
+UNVERIFIED
+
+Your job is to audit every claimed feature from zero, prove what works, repair what is broken, implement what is missing, remove fake behavior, and leave NX AI with a truthful, functional backend-first architecture.
+
+============================================================
+PART A — ZERO-TRUST PRINCIPLE
+============================================================
+
+The central rule:
+
+NO FEATURE IS CONSIDERED WORKING UNTIL IT IS EXECUTED AND VERIFIED.
+
+For every feature:
+
+1. Find the implementation.
+2. Inspect its dependencies.
+3. Execute it.
+4. Observe actual output.
+5. Compare against expected behavior.
+6. Verify side effects.
+7. Test failure cases.
+8. Record evidence.
+9. Mark the truth state.
+
+Truth states:
+VERIFIED
+PARTIALLY_VERIFIED
+IMPLEMENTED_UNVERIFIED
+FAILED
+BLOCKED
+UNAVAILABLE_ON_CURRENT_HOST
+NOT_IMPLEMENTED
+REMOVED_AND_VERIFIED
+
+Never write "working" based only on source code existence.
+
+============================================================
+PART B — COMPLETE FEATURE INVENTORY
+============================================================
+
+Create an exhaustive inventory of ALL NX AI claims.
+
+At minimum inspect these categories:
+
+CORE AGENT
+- chat
+- intent detection
+- planning
+- task execution
+- multi-step tasks
+- autonomous execution
+- worker routing
+- tool routing
+- task cancellation
+- task pause/resume
+- task recovery
+- verification
+- final result reporting
+
+AI / MODEL SYSTEM
+- Gemini integration
+- provider profiles
+- API keys
+- project grouping
+- model selection
+- routing modes
+- failover
+- cooldown
+- quota handling
+- authentication errors
+- network failures
+- offline behavior
+- local model support
+- context handling
+- prompt construction
+
+MEMORY
+- working memory
+- task memory
+- preferences
+- long-term memory
+- events
+- operational memory
+- semantic retrieval
+- persistence
+- restart recovery
+- secret filtering
+- deletion
+- import/export if claimed
+
+WINDOWS AGENT
+- command execution
+- PowerShell
+- CMD
+- process inspection
+- process launch
+- process stop
+- window enumeration
+- foreground window detection
+- window title detection
+- HWND information
+- window resize/move
+- minimize/maximize
+- application launch
+- app closing
+- keyboard input
+- mouse input
+- UI Automation
+- system settings
+- permissions
+
+FILES / STORAGE
+- directory listing
+- file search
+- copy
+- move
+- rename
+- delete
+- recycle bin
+- metadata
+- large files
+- duplicate files
+- disk usage
+- C: protection
+- non-C drive support
+- USB discovery
+- USB copy
+- checksum
+- resume
+- corruption handling
+- FAT32 checks
+- safe eject
+
+BROWSER
+- Chrome discovery
+- Edge discovery
+- CDP
+- tab listing
+- navigation
+- search
+- click
+- type
+- DOM extraction
+- form filling
+- file upload
+- download monitoring
+- CAPTCHA stop
+- OTP stop
+- payment stop
+- final-submission confirmation
+- result verification
+
+ANDROID
+- ADB discovery
+- wireless ADB
+- USB ADB
+- device information
+- screenshots
+- file transfer
+- app launch
+- shell
+- notification/device operations
+- scrcpy integration if claimed
+- disconnect/reconnect handling
+
+VOICE
+- microphone
+- speech recognition
+- Urdu
+- Roman Urdu input
+- English input
+- mixed language
+- speech-to-text
+- intent extraction
+- TTS
+- Urdu-script output
+- interruption/barge-in
+- echo prevention
+- wake word if claimed
+- microphone permissions
+- voice error states
+
+REAL-TIME
+- event bus
+- SSE/WebSocket
+- task progress
+- telemetry
+- process data
+- CPU
+- RAM
+- disk
+- network
+- browser status
+- Android status
+- model/provider status
+- worker status
+- verification status
+
+SECURITY
+- C: drive protection
+- dangerous command detection
+- confirmation gates
+- secret scrubbing
+- API-key protection
+- token protection
+- OTP/PIN protection
+- audit log
+- permissions
+- tool sandboxing
+- worker boundaries
+- path traversal protection
+- command injection protection
+
+WORKERS / SKILLS
+- worker registry
+- skill registry
+- enable/disable
+- permission model
+- worker health
+- retries
+- timeout
+- resource limits
+- skill versioning
+- quarantine
+- failure isolation
+
+PLANNER / ORCHESTRATOR
+- task decomposition
+- dependencies
+- tool selection
+- worker selection
+- state transitions
+- progress
+- retries
+- recovery
+- verification
+- final completion
+
+UI
+- dashboard
+- task view
+- chat
+- memory
+- providers
+- workers
+- skills
+- browser
+- Android
+- storage
+- telemetry
+- verification
+- logs
+- settings
+- themes
+- responsive behavior
+
+DESKTOP SHELL
+- Electron
+- preload
+- context isolation
+- node integration disabled
+- sandbox
+- tray
+- startup
+- minimize
+- restore
+- hotkeys
+- crash recovery
+- updater if claimed
+- installer/uninstaller
+
+CHARACTER
+CURRENTLY FROZEN.
+Do not implement new character work in this operation.
+Do not add Blender, VRM, Live2D, or 3D character code.
+Future character direction: 2D animated companion.
+
+============================================================
+PART C — REMOVE ALL FAKE FEATURES
+============================================================
+
+Search for:
+- Math.random telemetry
+- hardcoded devices
+- hardcoded PIDs
+- hardcoded USB drives
+- fake success responses
+- pre-written PASS test arrays
+- fake browser click coordinates
+- fake ADB sync
+- fake storage eject
+- fake network throughput
+- fake process data
+- fake provider status
+- demo memory
+- in-memory state presented as persistent
+- static progress values
+- simulated task completion
+- placeholder responses
+- "success" without side effects
+- "completed" without verification
+
+For each:
+1. remove it
+2. replace it with real implementation
+3. add real test
+4. add failure handling
+5. verify
+
+============================================================
+PART D — REAL BACKEND ARCHITECTURE
+============================================================
+
+Build the system around these modules:
+
+1. Orchestrator
+2. Planner
+3. Task Ledger
+4. Progress Ledger
+5. Policy Engine
+6. Tool Registry
+7. Worker Manager
+8. Worker Implementations
+9. Model Gateway
+10. Memory Manager
+11. Event Bus
+12. Verification Engine
+13. Recovery Engine
+14. Security Guard
+15. Audit Logger
+16. Host Adapter Layer
+17. Browser Adapter
+18. Storage Adapter
+19. Android Adapter
+20. Telemetry Adapter
+
+Every module must have clear contracts.
+
+============================================================
+PART E — ORCHESTRATOR
+============================================================
+
+Implement:
+
+User request
+-> intent
+-> policy
+-> planning
+-> task creation
+-> worker selection
+-> execution
+-> observation
+-> verification
+-> recovery
+-> final result
+
+The orchestrator must never mark a task complete without verification.
+
+============================================================
+PART F — TASK LEDGER
+============================================================
+
+Every task must store:
+
+- task_id
+- user goal
+- normalized intent
+- constraints
+- plan
+- steps
+- current step
+- completed steps
+- pending steps
+- worker
+- tool
+- status
+- progress
+- verification
+- failures
+- retries
+- recovery
+- final result
+- evidence
+- timestamps
+
+Persist task history safely.
+
+============================================================
+PART G — REAL WINDOWS HOST LAYER
+============================================================
+
+Use actual Windows capabilities.
+
+Implement real adapters for:
+- processes
+- filesystem
+- volumes
+- removable drives
+- HWND discovery
+- foreground window
+- window bounds
+- process association
+- UI Automation
+- keyboard/mouse
+- PowerShell
+- CMD
+- system commands
+- safe eject
+- permissions
+
+Never fake unsupported Windows capabilities.
+
+============================================================
+PART H — REAL FILE / USB ENGINE
+============================================================
+
+Build a transactional file system engine.
+
+For USB copy:
+1. detect device
+2. identify capacity
+3. check filesystem
+4. check destination free space
+5. validate source
+6. detect conflicts
+7. calculate required size
+8. check FAT32 restrictions
+9. begin transactional copy
+10. create manifest
+11. write partial file
+12. flush
+13. checksum
+14. atomic rename
+15. verify final file
+16. record result
+17. optionally eject safely
+
+If interrupted:
+- validate partial data
+- resume safely
+- or discard and restart
+
+Never claim success without destination verification.
+
+============================================================
+PART I — BROWSER ENGINE
+============================================================
+
+Build a real browser worker using CDP and/or semantic automation.
+
+Required:
+- browser discovery
+- tab discovery
+- navigation
+- DOM inspection
+- actions
+- result observation
+- verification
+
+For sensitive online forms:
+- stop at CAPTCHA
+- stop at OTP
+- stop at identity verification
+- stop at payment
+- stop before final submission unless user explicitly confirms
+
+============================================================
+PART J — ANDROID ENGINE
+============================================================
+
+Use actual ADB.
+
+Required:
+- detection
+- connection state
+- device metadata
+- commands
+- file operations
+- application operations
+- screenshots
+- disconnect/reconnect
+
+No device = disconnected.
+
+============================================================
+PART K — MODEL GATEWAY
+============================================================
+
+Implement provider abstraction.
+
+Provider:
+- credentials
+- project
+- model
+- health
+- quota
+- cooldown
+- timeout
+- retries
+- circuit breaker
+- fallback
+
+Use actual API calls.
+
+Never claim provider health without testing it.
+
+============================================================
+PART L — MEMORY
+============================================================
+
+Implement persistent memory with:
+- indexing
+- relevance
+- expiration
+- context budget
+- secret filtering
+- deletion
+- auditability
+
+Verify persistence after restart.
+
+============================================================
+PART M — EVENT SYSTEM
+============================================================
+
+Implement real events from state transitions.
+
+Support:
+- event history
+- SSE/WebSocket streaming
+- reconnect
+- replay where required
+- ordered timestamps
+- source/task correlation
+
+============================================================
+PART N — VERIFICATION ENGINE
+============================================================
+
+Build real executable verification.
+
+Each test:
+- starts
+- executes
+- captures output
+- evaluates
+- stores evidence
+- returns truthful status
+
+No hardcoded PASS.
+
+Verification must be independent enough that it can detect a false implementation.
+
+============================================================
+PART O — RECOVERY ENGINE
+============================================================
+
+For failure:
+1. classify
+2. determine safe retry
+3. retry
+4. re-observe
+5. alternate method
+6. verify
+7. escalate or fail
+
+Never infinite loop.
+
+============================================================
+PART P — SECURITY
+============================================================
+
+Implement:
+- command policy
+- destructive-action guard
+- C: protection
+- confirmation gates
+- path safety
+- shell escaping
+- secret scrubbing
+- secure logs
+- credential isolation
+- worker permissions
+- tool permissions
+
+Test malicious/unsafe inputs.
+
+============================================================
+PART Q — UI
+============================================================
+
+UI is a visualization/control layer, not the source of truth.
+
+Build a clean desktop workstation.
+
+Target:
+1024x600 through 2560x1440+.
+
+Provide:
+- collapsible sidebar
+- dashboard
+- task center
+- chat
+- memory
+- workers
+- skills
+- providers
+- browser
+- Android
+- storage
+- telemetry
+- verification
+- logs
+- settings
+
+Every value must come from the backend.
+
+============================================================
+PART R — THEMES
+============================================================
+
+Include:
+- NX Graphite
+- NX Midnight
+- NX Light
+- NX Slate
+- NX Emerald
+- NX Amber
+
+Tokenize all visual settings.
+
+============================================================
+PART S — DESKTOP / ELECTRON
+============================================================
+
+Security baseline:
+- contextIsolation true
+- nodeIntegration false
+- sandbox true where compatible
+- secure preload
+- typed IPC
+- minimal privileged surface
+
+Implement:
+- tray
+- startup
+- restore
+- minimize
+- hotkeys
+- crash recovery
+- logging
+
+============================================================
+PART T — OBSERVABILITY
+============================================================
+
+Build real diagnostics.
+
+Show:
+- backend health
+- worker health
+- provider health
+- task state
+- telemetry
+- logs
+- verification
+- failures
+- recovery
+
+No green status unless evidence exists.
+
+============================================================
+PART U — PERFORMANCE
+============================================================
+
+Measure actual:
+- startup
+- idle RAM
+- active RAM
+- CPU
+- API latency
+- task latency
+- browser overhead
+- memory leaks
+- worker overhead
+
+Do not fabricate targets as measured results.
+
+============================================================
+PART V — CLEANUP
+============================================================
+
+Remove:
+- dead code
+- demo routes
+- fake adapters
+- old branding
+- obsolete dependencies
+- unused assets
+- placeholder components
+- misleading documentation
+
+Current character work remains frozen.
+
+============================================================
+PART W — HYGIENE
+============================================================
+
+A real hygiene script must scan:
+- legacy names
+- fake telemetry patterns
+- hardcoded device data
+- mock responses
+- secrets
+- unused dependencies
+- obsolete routes
+- forbidden UI APIs
+
+The script must actually run.
+
+============================================================
+PART X — TEST MATRIX
+============================================================
+
+Create tests for:
+
+CORE
+- task creation
+- task execution
+- task cancellation
+- task recovery
+- verification
+
+WINDOWS
+- process discovery
+- window discovery
+- filesystem
+- command policy
+- C: protection
+
+STORAGE
+- drive discovery
+- USB discovery
+- file copy
+- checksum
+- resume
+- eject
+
+BROWSER
+- discovery
+- tab listing
+- navigation
+- action
+- verification
+
+ANDROID
+- device discovery
+- command
+- disconnect handling
+
+AI
+- provider success
+- auth failure
+- quota failure
+- failover
+- cooldown
+
+MEMORY
+- save
+- restart
+- read
+- delete
+- secret filtering
+
+SECURITY
+- dangerous command
+- path traversal
+- shell injection
+- secret persistence
+
+UI
+- responsive layouts
+- theme persistence
+- backend truthfulness
+
+============================================================
+PART Y — HOST-SPECIFIC VERIFICATION
+============================================================
+
+Container/Linux may only verify portable behavior.
+
+Actual Windows features must be tested on Windows.
+
+If no Windows host is available:
+mark them UNAVAILABLE_ON_CURRENT_HOST.
+
+Never convert that to PASS.
+
+============================================================
+PART Z — RELEASE / PUSH
+============================================================
+
+Before release:
+- clean working tree
+- tests
+- typecheck
+- lint
+- build
+- runtime verification
+- security scan
+- hygiene scan
+- dependency check
+
+Then:
+git status
+git diff
+git log
+git rev-parse HEAD
+git remote -v
+
+After push:
+repeat verification.
+
+============================================================
+FINAL OUTPUT
+============================================================
+
+Produce a complete truth report:
+
+1. Total claimed features discovered
+2. Verified
+3. Partially verified
+4. Implemented but unverified
+5. Failed
+6. Unavailable
+7. Not implemented
+8. Removed and verified
+9. Fake implementations removed
+10. Files changed
+11. Files deleted
+12. Dependencies added
+13. Dependencies removed
+14. Tests run
+15. Test evidence
+16. Runtime evidence
+17. Build evidence
+18. Security evidence
+19. Git evidence
+20. Remaining work
+
+IMPORTANT:
+
+Do not make the report look successful.
+
+Make the repository successful.
+
+If 0 features work, report 0.
+
+If 20 features work, report 20.
+
+If Windows features cannot be tested, mark them unavailable.
+
+If a feature is broken, report FAILED.
+
+If implementation exists but has no proof, report IMPLEMENTED_UNVERIFIED.
+
+No fake pass.
+No simulated success.
+No invented telemetry.
+No invented devices.
+No invented test results.
+No invented Git push.
+
+The repository itself is the truth.

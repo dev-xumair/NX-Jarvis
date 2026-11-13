@@ -6,95 +6,85 @@
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+    --nx-font-scale: 1;
+    --radius-card: 0.5rem;
+    --status-success: #10b981;
+    --status-good: #10b981;
+    --status-warning: #f59e0b;
+    --status-danger: #ef4444;
+  }
+
+  html {
+    font-size: calc(16px * var(--nx-font-scale, 1));
   }
 
   body {
     font-family: var(--font-sans);
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
-    user-select: none;
+    overflow: hidden;
     -webkit-font-smoothing: antialiased;
+    background-color: var(--bg-app, #0c1017);
+    color: var(--text-main, #f1f5f9);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--accent, #38bdf8);
+    outline-offset: 2px;
   }
 }
 
-/* Three Approved Themes */
-
-/* 1. Graphite Dark (Default) */
-.theme-graphite-dark {
-  --bg-app: #0c1017;
-  --bg-surface: #141b24;
-  --bg-surface-elevated: #1b2431;
-  --bg-surface-subtle: #232f40;
-  --border-subtle: #263345;
-  --border-strong: #33445c;
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
-  --accent: #38bdf8;
-  --accent-hover: #0ea5e9;
-  --accent-subtle: rgba(56, 189, 248, 0.12);
-  --accent-text: #0284c7;
-  --status-success: #10b981;
-  --status-warning: #f59e0b;
-  --status-danger: #ef4444;
-  color-scheme: dark;
+.nx-wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
-/* 2. Google Light */
-.theme-google-light {
-  --bg-app: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #f1f5f9;
-  --bg-surface-subtle: #e2e8f0;
-  --border-subtle: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --text-main: #0f172a;
-  --text-muted: #475569;
-  --text-dim: #94a3b8;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-subtle: rgba(37, 99, 235, 0.08);
-  --accent-text: #1d4ed8;
+.nx-code-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.nx-light-mode {
   --status-success: #059669;
+  --status-good: #059669;
   --status-warning: #d97706;
   --status-danger: #dc2626;
   color-scheme: light;
 }
 
-/* 3. Midnight AI */
-.theme-midnight-ai {
-  --bg-app: #06090e;
-  --bg-surface: #0b1118;
-  --bg-surface-elevated: #111a26;
-  --bg-surface-subtle: #172435;
-  --border-subtle: #1e2e42;
-  --border-strong: #2a3f5a;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --text-dim: #475569;
-  --accent: #10b981;
-  --accent-hover: #059669;
-  --accent-subtle: rgba(16, 185, 129, 0.12);
-  --accent-text: #059669;
+.nx-dark-mode {
   --status-success: #10b981;
-  --status-warning: #fbbf24;
-  --status-danger: #f87171;
+  --status-good: #10b981;
+  --status-warning: #f59e0b;
+  --status-danger: #ef4444;
   color-scheme: dark;
 }
 
-/* Custom scrollbars */
+.nx-reduced-motion *,
+.nx-reduced-motion *::before,
+.nx-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+.nx-high-contrast {
+  --border-subtle: var(--text-muted);
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
+  background: var(--border-subtle, #263345);
+  border-radius: 4px;
 }

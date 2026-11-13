@@ -1,7 +1,7 @@
 @echo off
-title NX AI - Autonomous Windows Agent & Desktop Companion
+title NX AI — Autonomous Windows Agent
 echo ===============================================================
-echo   NX AI Windows Autonomous Agent & Anime Desktop Companion v3.0
+echo   NX AI — Autonomous Windows Agent (Powered by DevX_NX)
 echo   "Kaam karo, verify karo, phir bolo"
 echo ===============================================================
 echo.
@@ -14,7 +14,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo Starting NX AI Windows Agent on http://localhost:3000 ...
+echo Starting NX AI Workstation on http://localhost:3000 ...
 start "" http://localhost:3000
 npm run dev
 pause
